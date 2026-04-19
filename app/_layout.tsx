@@ -288,8 +288,20 @@ function AuthGate() {
       if (error) {
         console.error('[AuthGate] setSession error:', error)
       } else {
-        console.log('[AuthGate] Session set successfully! Navigating to tabs...')
-        router.replace('/(tabs)')
+        console.log('[AuthGate] Session set successfully! Waiting for sync...');
+        
+        // Safety: Wait for up to 3 seconds for the session to populate in our context
+        let syncAttempts = 0;
+        while (syncAttempts < 30) {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+             console.log('[AuthGate] Session synced! Moving to tabs...');
+             router.replace('/(tabs)')
+             break;
+          }
+          await new Promise(res => setTimeout(res, 100));
+          syncAttempts++;
+        }
       }
     } else {
       console.log('[AuthGate] No tokens found in URL.')
