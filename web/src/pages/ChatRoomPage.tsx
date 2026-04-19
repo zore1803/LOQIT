@@ -118,6 +118,17 @@ export function ChatRoomPage() {
       }
       setMessages(prev => [...prev, newMsg])
       setTimeout(scrollToBottom, 50)
+
+      // Notify the other party about the new message
+      if (role === 'finder' && room?.owner_id) {
+        await supabase.from('notifications').insert({
+          user_id: room.owner_id,
+          title: '💬 New message from finder',
+          body: text.length > 80 ? text.slice(0, 80) + '…' : text,
+          type: 'chat_message',
+          reference_id: roomId,
+        })
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to send message')
     } finally { setSending(false) }

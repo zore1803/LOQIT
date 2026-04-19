@@ -119,11 +119,31 @@ export function useDevices() {
   }
 
   const markAsLost = async (id: string) => {
-    return updateDevice(id, { status: 'lost' })
+    const result = await updateDevice(id, { status: 'lost' })
+    if (!result.error && user) {
+      await supabase.from('notifications').insert({
+        user_id: user.id,
+        title: '⚠️ Device Reported Lost',
+        body: 'Your device has been reported as lost. Our BLE network is now actively scanning for it.',
+        type: 'device_lost',
+        reference_id: id,
+      })
+    }
+    return result
   }
 
   const markAsFound = async (id: string) => {
-    return updateDevice(id, { status: 'recovered' })
+    const result = await updateDevice(id, { status: 'recovered' })
+    if (!result.error && user) {
+      await supabase.from('notifications').insert({
+        user_id: user.id,
+        title: '✅ Device Marked as Recovered',
+        body: 'Your device has been marked as recovered. Great news!',
+        type: 'device_found',
+        reference_id: id,
+      })
+    }
+    return result
   }
 
   return {

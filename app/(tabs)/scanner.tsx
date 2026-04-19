@@ -112,7 +112,8 @@ export default function ScannerScreen() {
     })
   }, [user])
 
-  const upsertDevice = useCallback(async (beaconId: string, rssi: number, name?: string) => {
+  // fromGps=true means it came from GPS proximity (not a real BLE signal) — never triggers the alert modal
+  const upsertDevice = useCallback(async (beaconId: string, rssi: number, name?: string, fromGps = false) => {
     // 1. Local Cache Match (High Speed)
     let matched = findMatch(beaconId, name)
     
@@ -148,71 +149,83 @@ export default function ScannerScreen() {
       return [next, ...other].slice(0, 10)
     })
 
-    if (next.status === 'lost' || next.status === 'stolen') {
+    // Only show the alert modal for real BLE detections, not GPS proximity matches
+    if (!fromGps && (next.status === 'lost' || next.status === 'stolen')) {
       setLostAlertDevice(next)
     }
   }, [findMatch])
 
+  // Keep the lost-device registry refreshed (runs on mount, not tied to scan state)
   useEffect(() => {
-    let proximityInterval: NodeJS.Timeout | null = null;
-    
-    const fetchRegistryAndCheckProximity = async () => {
-      // 1. Fetch Lost Registry
-      const { data } = await supabase.from('devices').select('*').eq('status', 'lost')
+    const fetchRegistry = async () => {
+      const { data } = await supabase.from('devices').select('*').in('status', ['lost', 'stolen'])
       if (data) {
         lostRepo.current = data
-        console.log(`[Scanner] Lost Registry updated: ${data.length} devices`);
+        console.log(`[Scanner] Lost Registry updated: ${data.length} devices`)
       }
+    }
 
-      // 2. GPS Proximity Fallback (Find Nord by Location)
+    fetchRegistry()
+    const registryInterval = setInterval(fetchRegistry, 30000) // refresh every 30s
+
+    return () => {
+      clearInterval(registryInterval)
+      bleService.stopScan()
+    }
+  }, [])
+
+  // GPS proximity check — only runs while the user has actively started scanning
+  // Uses 50m radius; does NOT trigger the "device found" alert modal (fromGps=true)
+  useEffect(() => {
+    if (!isScanning) return
+
+    let proximityInterval: NodeJS.Timeout | null = null
+
+    const checkGpsProximity = async () => {
+      if (lostRepo.current.length === 0) return
       try {
-        const userLoc = await Location.getLastKnownPositionAsync({}) || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        if (userLoc && data) {
-          const lat1 = userLoc.coords.latitude;
-          const lon1 = userLoc.coords.longitude;
+        const userLoc = await Location.getLastKnownPositionAsync({})
+          || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        if (!userLoc) return
 
-          data.forEach(dev => {
-            // EXCLUDE THIS PHYSICAL PHONE (Self) from GPS Match
-            if (myDeviceId && dev.id === myDeviceId) return;
+        const lat1 = userLoc.coords.latitude
+        const lon1 = userLoc.coords.longitude
 
-            if (dev.last_seen_lat && dev.last_seen_lng) {
-              const lat2 = dev.last_seen_lat;
-              const lon2 = dev.last_seen_lng;
-              
-              const R = 6371e3; 
-              const φ1 = lat1 * Math.PI/180;
-              const φ2 = lat2 * Math.PI/180;
-              const Δφ = (lat2-lat1) * Math.PI/180;
-              const Δλ = (lon2-lon1) * Math.PI/180;
-              const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                        Math.cos(φ1) * Math.cos(φ2) *
-                        Math.sin(Δλ/2) * Math.sin(Δλ/2);
-              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-              const d = R * c; 
-              
-              if (d < 500) { // Increased to 500m for "Guaranteed Discovery"
-                console.log(`[Scanner] 📍 GPS MATCH: ${dev.make} is nearby (~${d.toFixed(0)}m).`);
-                upsertDevice(dev.id, -70, `GPS-${dev.model}`);
-                
-                // Also report sighting to database/police portal
-                bleService.reportDetectedLostDevice(dev.id, -70, `GPS-${dev.model}`);
-              }
-            }
-          });
-        }
+        lostRepo.current.forEach(dev => {
+          if (myDeviceId && dev.id === myDeviceId) return
+          if (!dev.last_seen_lat || !dev.last_seen_lng) return
+
+          const lat2 = dev.last_seen_lat
+          const lon2 = dev.last_seen_lng
+          const R = 6371e3
+          const φ1 = lat1 * Math.PI / 180
+          const φ2 = lat2 * Math.PI / 180
+          const Δφ = (lat2 - lat1) * Math.PI / 180
+          const Δλ = (lon2 - lon1) * Math.PI / 180
+          const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2)
+            + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+          const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+          // 50m radius — tight enough to mean the device is genuinely nearby
+          if (d < 50) {
+            console.log(`[Scanner] 📍 GPS MATCH within 50m: ${dev.make} (~${d.toFixed(0)}m)`)
+            // fromGps=true: shows in list but does NOT open the "Lost device found nearby!" modal
+            upsertDevice(dev.id, -70, `GPS-${dev.model}`, true)
+            bleService.reportDetectedLostDevice(dev.id, -70, `GPS-${dev.model}`)
+          }
+        })
       } catch (gpsErr) {
-        console.warn('[Scanner] Proximity check failed:', gpsErr);
+        console.warn('[Scanner] GPS proximity check failed:', gpsErr)
       }
     }
 
-    fetchRegistryAndCheckProximity()
-    proximityInterval = setInterval(fetchRegistryAndCheckProximity, 10000); // Check every 10s
+    checkGpsProximity()
+    proximityInterval = setInterval(checkGpsProximity, 15000) // every 15s while scanning
 
-    return () => { 
-      if (proximityInterval) clearInterval(proximityInterval);
-      bleService.stopScan(); 
+    return () => {
+      if (proximityInterval) clearInterval(proximityInterval)
     }
-  }, [upsertDevice])
+  }, [isScanning, upsertDevice, myDeviceId])
 
   const toggleScan = async () => {
     if (isScanning) {

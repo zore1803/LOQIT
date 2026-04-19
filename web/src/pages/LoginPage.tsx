@@ -156,7 +156,13 @@ export function LoginPage() {
       } else {
         const { error } = await signIn(identifier, password)
         if (error) throw error
-        const { data: profile } = await supabase.from('profiles').select('role').single()
+        const { data: { user: currentUser } } = await supabase.auth.getUser()
+        if (!currentUser) throw new Error('Sign in succeeded but session was not created.')
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', currentUser.id)
+          .single()
         if (mode === 'police') {
           if (profile?.role !== 'police' && profile?.role !== 'admin') {
             await supabase.auth.signOut()
@@ -183,9 +189,10 @@ export function LoginPage() {
     try {
       const { error } = await verifyOtp(identifier, otpToken)
       if (error) throw error
-      setMessage({ type: 'success', text: 'Account verified successfully! You can now access your dashboard.' })
       setShowOtpVerify(false)
       setIsSignUp(false)
+      // Navigate to dashboard after successful verification (session is now active)
+      navigate('/dashboard')
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Invalid OTP' })
     } finally {
