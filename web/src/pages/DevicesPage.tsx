@@ -81,12 +81,17 @@ export function DevicesPage() {
     alignItems: 'center', justifyContent: 'center', zIndex: 1000,
   }
 
-  if (loading) {
+  if (loading && devices.length === 0) {
     return (
       <div style={containerStyle}>
-        <div style={{ textAlign: 'center', padding: '100px', color: Colors.onSurfaceVariant }}>
-          <span className="material-icons" style={{ fontSize: '40px', animation: 'spin 1s linear infinite', display: 'block', marginBottom: '12px' }}>sync</span>
-          Loading devices...
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', opacity: 0.3 }}>
+          <div style={{ height: '32px', width: '200px', background: Colors.outlineVariant, borderRadius: '8px' }} />
+          <div style={{ height: '36px', width: '120px', background: Colors.outlineVariant, borderRadius: '12px' }} />
+        </div>
+        <div style={{ gap: '12px', display: 'flex', flexDirection: 'column' }}>
+           {[1,2,3,4,5].map(i => (
+             <div key={i} style={{ height: '64px', background: Colors.surfaceContainer, border: `1px solid ${Colors.outlineVariant}`, borderRadius: '12px', opacity: 0.2, animation: 'pulse 2s infinite' }} />
+           ))}
         </div>
       </div>
     )

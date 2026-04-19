@@ -30,20 +30,23 @@ export type Device = {
 
 // Legacy IMEI validation removed
 
+// Global cache to prevent "always scanning" feel on navigation
+let cachedDevices: Device[] | null = null
+
 export function useDevices() {
   const { user } = useAuth()
-  const [devices, setDevices] = useState<Device[]>([])
-  const [loading, setLoading] = useState(true)
+  const [devices, setDevices] = useState<Device[]>(cachedDevices || [])
+  const [loading, setLoading] = useState(!cachedDevices)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchDevices = useCallback(async () => {
+  const fetchDevices = useCallback(async (isSilent = false) => {
     if (!user) {
       setDevices([])
       setLoading(false)
       return
     }
 
-    setLoading(true)
+    if (!isSilent) setLoading(true)
     setError(null)
 
     const { data, error: fetchError } = await supabase
@@ -56,14 +59,16 @@ export function useDevices() {
       setError(fetchError.message)
       setDevices([])
     } else {
-      setDevices(data as Device[])
+      const d = data as Device[]
+      setDevices(d)
+      cachedDevices = d
     }
 
     setLoading(false)
   }, [user])
 
   useEffect(() => {
-    fetchDevices()
+    fetchDevices(!!cachedDevices)
   }, [fetchDevices])
 
   const addDevice = async (device: {
@@ -89,7 +94,11 @@ export function useDevices() {
       .single()
 
     if (!error && data) {
-      setDevices((prev) => [data as Device, ...prev])
+      setDevices((prev) => {
+        const next = [data as Device, ...prev]
+        cachedDevices = next
+        return next
+      })
     }
 
     return { data, error }
@@ -104,7 +113,11 @@ export function useDevices() {
       .single()
 
     if (!error && data) {
-      setDevices((prev) => prev.map((d) => (d.id === id ? (data as Device) : d)))
+      setDevices((prev) => {
+        const next = prev.map((d) => (d.id === id ? (data as Device) : d))
+        cachedDevices = next
+        return next
+      })
     }
 
     return { data, error }
@@ -114,7 +127,11 @@ export function useDevices() {
     const { error } = await supabase.from('devices').delete().eq('id', id)
 
     if (!error) {
-      setDevices((prev) => prev.filter((d) => d.id !== id))
+      setDevices((prev) => {
+        const next = prev.filter((d) => d.id !== id)
+        cachedDevices = next
+        return next
+      })
     }
 
     return { error }

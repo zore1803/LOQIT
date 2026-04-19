@@ -1,4 +1,3 @@
-import { Colors } from '../lib/colors'
 
 export const globalStyles = `
   :root {
@@ -116,8 +115,16 @@ export const globalStyles = `
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--color-secondary); }
-    50% { opacity: 0.6; box-shadow: 0 0 16px var(--color-secondary); }
+    0%, 100% { 
+      opacity: 1; 
+      box-shadow: 0 0 8px var(--color-primary);
+      transform: scale(1);
+    }
+    50% { 
+      opacity: 0.6; 
+      box-shadow: 0 0 24px var(--color-primary);
+      transform: scale(1.05);
+    }
   }
 
   @keyframes fadeIn {

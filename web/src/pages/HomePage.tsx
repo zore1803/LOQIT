@@ -65,10 +65,10 @@ function StatCard({ label, value, icon, color, path, loading }: {
       <div>
         <div style={{ fontSize: '30px', fontWeight: 900, color: Colors.onSurface, lineHeight: 1, letterSpacing: '-1px' }}>
           {loading ? (
-            <span className="material-icons" style={{ fontSize: '22px', animation: 'spin 1s linear infinite', color: Colors.outline }}>sync</span>
+            <div style={{ width: '40px', height: '30px', backgroundColor: Colors.outlineVariant, borderRadius: '4px', opacity: 0.3 }} />
           ) : value}
         </div>
-        <div style={{ fontSize: '12px', color: Colors.onSurfaceVariant, fontWeight: 600, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div style={{ fontSize: '12px', color: Colors.onSurfaceVariant, fontWeight: 600, marginTop: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           {label}
         </div>
       </div>
@@ -190,8 +190,10 @@ export function HomePage() {
           </div>
 
           {loading ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: Colors.onSurfaceVariant }}>
-              <span className="material-icons" style={{ animation: 'spin 1s linear infinite', fontSize: '32px', color: Colors.primary }}>sync</span>
+            <div style={{ padding: '24px', gap: '8px', display: 'flex', flexDirection: 'column' }}>
+               {[1,2,3].map(i => (
+                 <div key={i} style={{ height: '52px', background: Colors.surfaceContainerHigh, borderRadius: '8px', opacity: 0.3 }} />
+               ))}
             </div>
           ) : devices.length === 0 ? (
             <div style={{ padding: '56px 24px', textAlign: 'center' }}>

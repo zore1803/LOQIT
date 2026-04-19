@@ -36,11 +36,22 @@ function Spinner() {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', backgroundColor: Colors.background, color: Colors.onSurface,
+      justifyContent: 'center', backgroundColor: Colors.background,
     }}>
       <div style={{ textAlign: 'center' }}>
-        <span className="material-icons" style={{ fontSize: '48px', color: Colors.primary, animation: 'spin 1s linear infinite' }}>sync</span>
-        <p style={{ marginTop: '16px' }}>Loading...</p>
+        <div style={{
+          width: '80px', height: '80px', borderRadius: '24px',
+          background: `linear-gradient(135deg, ${Colors.primary}22, ${Colors.primary}11)`,
+          border: `2px solid ${Colors.primary}44`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 0 40px ${Colors.primary}20`,
+          animation: 'pulse 1.8s ease-in-out infinite',
+        }}>
+          <span className="material-icons" style={{ fontSize: '40px', color: Colors.primary }}>shield</span>
+        </div>
+        <div style={{ marginTop: '20px', color: Colors.primary, fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', opacity: 0.8 }}>
+          Authenticating
+        </div>
       </div>
     </div>
   )
