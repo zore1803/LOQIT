@@ -371,29 +371,27 @@ function AuthGate() {
   const [handsetIdentifier, setHandsetIdentifier] = useState<string | null>(null)
 
   useEffect(() => {
-    let timerCleared = false;
-    
-    // Safety Fallback: If AsyncStorage hangs for the ID, don't block the whole app after 6s
-    const fallbackTimer = setTimeout(() => {
-      if (!timerCleared) {
-        console.warn('[LOQIT-BOOT] Handset ID fetch hung. Using fallback.');
-        setHandsetIdentifier(`hset-fallback-${Date.now()}`);
+    const getIdentity = async () => {
+      try {
+        const id = await getHandsetIdentifier()
+        setHandsetIdentifier(id)
+      } catch (error) {
+        console.error('[AuthGate] Failed to get device identity:', error)
+        setHandsetIdentifier('unknown-device')
       }
-    }, 2000);
+    }
+    
+    getIdentity()
 
-    getHandsetIdentifier().then(id => {
-      timerCleared = true;
-      clearTimeout(fallbackTimer);
-      setHandsetIdentifier(id);
-    }).catch(err => {
-      console.error('[LOQIT-BOOT] Handset ID fetch error:', err);
-      setHandsetIdentifier(`hset-err-${Date.now()}`);
-    });
+    // Emergency Timeout: If device ID is still null after 5 seconds, use a fallback
+    const safetyTimer = setTimeout(() => {
+      if (!handsetIdentifier) {
+        console.warn('[AuthGate] Handset ID hung. Using safety fallback.')
+        setHandsetIdentifier(`hset-safe-${Date.now()}`)
+      }
+    }, 5000)
 
-    return () => {
-      timerCleared = true;
-      clearTimeout(fallbackTimer);
-    };
+    return () => clearTimeout(safetyTimer)
   }, [])
 
   // Auto-scan is handled in bootstrapBleBackground with a 30s restart loop
