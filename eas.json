@@ -6,7 +6,14 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://qnyukwxgrvrfwhrsaepj.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFueXVrd3hncnZyZndocnNhZXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTkyNTUsImV4cCI6MjA5MTQ3NTI1NX0.82yHHZCoWOeui_zrltOqx-onq6s5G_j0emhhZobM4oE",
+        "EXPO_PUBLIC_LOCATIONIQ_API_KEY": "pk.b5ada85774117c8a8d65dd878a514073",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "835213327097-ladhkei3dnp492tisv50h1k1gpuumb7v.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "835213327097-ft81457tut4ukrhdboprg174c8vv2dv6.apps.googleusercontent.com"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -14,17 +21,21 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://xeykhdyanzjkymlfwseo.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhleWtoZHlhbnpqa3ltbGZ3c2VvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MzM1NjIsImV4cCI6MjA5MDEwOTU2Mn0.XSkxceiFbDqODroiNIcN7tu9yJcaAGk8UmdCUVdrC3o",
-        "EXPO_PUBLIC_LOCATIONIQ_API_KEY": "pk.88d6db2b14bb71ca4322321dbb988802"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://qnyukwxgrvrfwhrsaepj.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFueXVrd3hncnZyZndocnNhZXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTkyNTUsImV4cCI6MjA5MTQ3NTI1NX0.82yHHZCoWOeui_zrltOqx-onq6s5G_j0emhhZobM4oE",
+        "EXPO_PUBLIC_LOCATIONIQ_API_KEY": "pk.b5ada85774117c8a8d65dd878a514073",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "835213327097-ladhkei3dnp492tisv50h1k1gpuumb7v.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "835213327097-ft81457tut4ukrhdboprg174c8vv2dv6.apps.googleusercontent.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://xeykhdyanzjkymlfwseo.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhleWtoZHlhbnpqa3ltbGZ3c2VvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MzM1NjIsImV4cCI6MjA5MDEwOTU2Mn0.XSkxceiFbDqODroiNIcN7tu9yJcaAGk8UmdCUVdrC3o",
-        "EXPO_PUBLIC_LOCATIONIQ_API_KEY": "pk.88d6db2b14bb71ca4322321dbb988802"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://qnyukwxgrvrfwhrsaepj.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFueXVrd3hncnZyZndocnNhZXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTkyNTUsImV4cCI6MjA5MTQ3NTI1NX0.82yHHZCoWOeui_zrltOqx-onq6s5G_j0emhhZobM4oE",
+        "EXPO_PUBLIC_LOCATIONIQ_API_KEY": "pk.b5ada85774117c8a8d65dd878a514073",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "835213327097-ladhkei3dnp492tisv50h1k1gpuumb7v.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "835213327097-ft81457tut4ukrhdboprg174c8vv2dv6.apps.googleusercontent.com"
       }
     }
   },

@@ -39,6 +39,7 @@ type AuthContextValue = {
   user: User | null
   profile: Profile | null
   loading: boolean
+  isLoggingIn: boolean
   signUp: (payload: SignUpPayload) => Promise<{ error: AuthError | null }>
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signInWithGoogle: () => Promise<{ error: AuthError | null }>
@@ -155,6 +156,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       user: session?.user ?? null,
       profile,
       loading,
+      isLoggingIn,
       signUp: async ({ email, password, fullName, phoneNumber }) => {
         const cleanEmail = email.trim().toLowerCase()
         setTempUser({ email: cleanEmail, password, fullName, phoneNumber })
@@ -215,64 +217,50 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
           if (error) {
             console.error('[Auth-DEBUG] Google Sign-In Error:', error)
-            setIsLoggingIn(false); 
-            setLoading(false); 
+            setIsLoggingIn(false); setLoading(false);
             return { error }; 
           }
+
           if (!data?.url) {
-            console.error('[Auth-DEBUG] No redirect URL returned from Supabase')
-            setIsLoggingIn(false); 
-            setLoading(false); 
+            setIsLoggingIn(false); setLoading(false);
             return { error: new AuthError('No redirect URL returned') }; 
           }
 
           const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+          console.log('[Auth-DEBUG] Browser result type:', res.type)
 
-          if (res.type === 'success') {
-            const { url } = res
-            const parsed = Linking.parse(url)
-            
-            let accessToken = parsed.queryParams?.access_token as string
-            let refreshToken = parsed.queryParams?.refresh_token as string
-            
-            if (!accessToken && url.includes('#')) {
-              const fragment = url.split('#')[1]
-              const params = new URLSearchParams(fragment)
-              accessToken = params.get('access_token') || ''
-              refreshToken = params.get('refresh_token') || ''
+          // On Android, the browser can return 'success', 'dismiss', OR 'cancel'
+          // In ALL cases, we should poll for a session because the deep link handler
+          // in _layout.tsx may have already set it (or will set it momentarily)
+          let attempts = 0;
+          while (attempts < 50) { // 5 seconds total
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (currentSession) {
+              console.log('[Auth-DEBUG] Session found after polling!')
+              setSession(currentSession);
+              await loadProfile(currentSession.user.id);
+              setIsLoggingIn(false); setLoading(false);
+              return { error: null };
             }
-
-            if (accessToken) {
-              const { error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken || '',
-              })
-              
-              if (sessionError) { setIsLoggingIn(false); setLoading(false); return { error: sessionError }; }
-              
-              const { data: { user } } = await supabase.auth.getUser()
-              if (user) {
-                await supabase.from('profiles').update({ email_verified: true }).eq('id', user.id)
-                await loadProfile(user.id)
-              }
-              setIsLoggingIn(false)
-              setLoading(false)
-              return { error: null }
-            }
+            await new Promise(r => setTimeout(r, 100));
+            attempts++;
           }
+          
+          console.log('[Auth-DEBUG] Polling timed out. Session may still arrive via deep link.')
           setIsLoggingIn(false)
           setLoading(false)
           return { error: null }
         } catch (err) {
           console.error('[Auth-DEBUG] Google Sign-In caught error:', err)
-          setIsLoggingIn(false)
-          setLoading(false)
+          setIsLoggingIn(false); setLoading(false);
           return { error: { name: 'AuthError', message: `Google Sign-In failed: ${err instanceof Error ? err.message : 'Unknown Error'}` } as any }
         }
       },
       verifyOtp: async (email, token) => {
         const normalizedEmail = email.trim().toLowerCase()
         try {
+          setIsLoggingIn(true)
+          setLoading(true)
           const verifyUrl = process.env.EXPO_PUBLIC_N8N_VERIFY_OTP_URL || N8N_VERIFY_URL
           const response = await fetch(verifyUrl, {
             method: 'POST',
@@ -293,6 +281,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
           }
 
           if (!response.ok || (result.status !== 'verified' && result.code !== 'verified')) {
+            setIsLoggingIn(false)
+            setLoading(false)
             throw new Error(result.message || 'Verification failed');
           }
 
@@ -303,6 +293,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
           }
 
           if (!activeSession && !tempUser) {
+             setIsLoggingIn(false)
+             setLoading(false)
              return { error: { name: 'AuthError', message: 'Verification session expired.' } as any }
           }
 
@@ -313,7 +305,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
               password: tempUser.password,
               options: { data: { full_name: tempUser.fullName, phone_number: tempUser.phoneNumber } },
             })
-            if (signUpError && !signUpError.message.toLowerCase().includes('already registered')) throw signUpError;
+            if (signUpError && !signUpError.message.toLowerCase().includes('already registered')) {
+              setIsLoggingIn(false); setLoading(false);
+              throw signUpError;
+            }
             userId = signUpData?.user?.id;
           }
 
@@ -334,9 +329,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
             await loadProfile(sessionData.session.user.id)
           }
 
+          // Wait a tiny bit for the state to propagate
+          await new Promise(r => setTimeout(r, 500));
+          setIsLoggingIn(false)
+          setLoading(false)
           return { error: null }
         } catch (err) {
           console.error('[Auth] verifyOtp error:', err)
+          setIsLoggingIn(false)
+          setLoading(false)
           return { error: { name: 'AuthError', message: 'System error.' } as any }
         }
       },

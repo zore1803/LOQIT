@@ -16,6 +16,7 @@ import { LostDeviceLock, hasPasskeySet } from '../components/loqit/LostDeviceLoc
 
 import { FontFamily } from '../constants/typography'
 import * as Location from 'expo-location'
+import * as Linking from 'expo-linking'
 import * as Application from 'expo-application'
 import * as Device from 'expo-device'
 import { PairingGate } from '../components/loqit/PairingGate'
@@ -37,13 +38,15 @@ async function getHandsetIdentifier() {
 }
 
 function AuthGate() {
-  const { session, loading, profile } = useAuth()
+  const { session, loading, profile, isLoggingIn } = useAuth()
   const segments = useSegments()
   const router = useRouter()
 
   const [lockScreenActive, setLockScreenActive] = useState(false)
   const [lockDeviceId, setLockDeviceId] = useState<string | null>(null)
   const [lockMessage, setLockMessage] = useState<string | undefined>()
+
+  // ... (bootstrapBleBackground logic remains the same)
 
   const bootstrapBleBackground = useCallback(async () => {
     try {
@@ -148,7 +151,7 @@ function AuthGate() {
     } catch (error) {
       console.error('[LOQIT] BLE bootstrap failed (non-fatal):', error)
     }
-  }, [session, profile])
+  }, [session, profile, isLoggingIn])
 
   useEffect(() => {
     if (!session) return
@@ -254,8 +257,75 @@ function AuthGate() {
     }
   }, [session])
 
+  const [isProcessingDeepLink, setIsProcessingDeepLink] = useState(false)
+
+  // Extract tokens from a URL (checks both query params and hash fragment)
+  const extractTokensFromUrl = (url: string) => {
+    const parsed = Linking.parse(url)
+    let accessToken = parsed.queryParams?.access_token as string
+    let refreshToken = parsed.queryParams?.refresh_token as string
+
+    if (!accessToken && url.includes('#')) {
+      const fragment = url.split('#')[1]
+      const params = new URLSearchParams(fragment)
+      accessToken = params.get('access_token') || ''
+      refreshToken = params.get('refresh_token') || ''
+    }
+    return { accessToken, refreshToken }
+  }
+
+  // Process a login deep link: extract tokens and set the Supabase session
+  const handleLoginUrl = async (url: string) => {
+    console.log('[AuthGate] Processing login URL directly...')
+    setIsProcessingDeepLink(true)
+    const { accessToken, refreshToken } = extractTokensFromUrl(url)
+    if (accessToken) {
+      console.log('[AuthGate] Tokens found! Setting session...')
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || '',
+      })
+      if (error) {
+        console.error('[AuthGate] setSession error:', error)
+      } else {
+        console.log('[AuthGate] Session set successfully! Navigating to tabs...')
+        router.replace('/(tabs)')
+      }
+    } else {
+      console.log('[AuthGate] No tokens found in URL.')
+    }
+    setIsProcessingDeepLink(false)
+  }
+
   useEffect(() => {
-    if (loading) return;
+    // 1. Check if we were opened by a login deep link (cold start)
+    const checkInitialUrl = async () => {
+      try {
+        const url = await Linking.getInitialURL()
+        if (url && url.includes('auth/callback')) {
+          console.log('[AuthGate] Cold-start login link detected. Processing...')
+          await handleLoginUrl(url)
+        }
+      } catch (err) {
+        console.warn('[AuthGate] Initial URL check failed:', err)
+      }
+    }
+    checkInitialUrl()
+
+    // 2. Listen for links while the app is alive (warm start / background)
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (url && url.includes('auth/callback')) {
+        console.log('[AuthGate] Background login link detected. Processing...')
+        handleLoginUrl(url)
+      }
+    })
+
+    return () => subscription.remove()
+  }, [])
+
+  useEffect(() => {
+    // DO NOT REDIRECT if we are still processing a deep link
+    if (loading || isProcessingDeepLink || isLoggingIn) return;
 
     const currentGroup = segments[0]
     const inAuthGroup = currentGroup === '(auth)'
@@ -266,7 +336,7 @@ function AuthGate() {
     console.log(`[AuthGate] State: ${session ? 'Logged In' : 'Logged Out'}, Group: ${currentGroup}, Verified: ${profile?.email_verified}`);
 
     // 1. If NOT loading and NO session, force to Onboarding (unless already in auth)
-    if (!loading && !session && !inAuthGroup && currentGroup !== 'auth') {
+    if (!loading && !session && !isLoggingIn && !inAuthGroup && currentGroup !== 'auth') {
       console.log('[AuthGate] No session detected. Final catch: Redirecting to Onboarding...');
       router.replace('/(auth)/onboarding')
       return
@@ -296,7 +366,7 @@ function AuthGate() {
         }
       }
     }
-  }, [loading, router, segments, session, profile])
+  }, [loading, router, segments, session, profile, isLoggingIn])
 
   const [handsetIdentifier, setHandsetIdentifier] = useState<string | null>(null)
 
@@ -329,11 +399,8 @@ function AuthGate() {
   // Auto-scan is handled in bootstrapBleBackground with a 30s restart loop
 
   // Debug check for the exact reason for the loading screen
-  if (loading || !handsetIdentifier) {
-    console.log(`[AuthGate] Rendering LoadingView. Reason: loading=${loading}, handsetID=${!!handsetIdentifier}`);
-    
-    // Safety: If handsetIdentifier is stuck for too long, we'll try to recover
-    // but for now, we just log it.
+  if (loading || isLoggingIn || isProcessingDeepLink || !handsetIdentifier) {
+    console.log(`[AuthGate] Initialising. Reason: loading=${loading}, loggingIn=${isLoggingIn}, deepLink=${isProcessingDeepLink}, handsetID=${!!handsetIdentifier}`);
     
     return (
       <View style={styles.loadingContainer}>
@@ -341,19 +408,8 @@ function AuthGate() {
         <View style={{ marginTop: 20, alignItems: 'center' }}>
           <Text style={{ color: Colors?.primary || '#000', fontFamily: FontFamily?.headingBold || 'System' }}>Initialising LOQIT Security...</Text>
           <Text style={{ color: Colors?.outline || '#888', fontSize: 10, marginTop: 8 }}>
-            Status: {loading ? 'Checking Session...' : 'Verifying Hardware...'}
+            Status: {(isLoggingIn || isProcessingDeepLink) ? 'Syncing Profile...' : loading ? 'Checking Session...' : 'Verifying Hardware...'}
           </Text>
-          
-          <Pressable 
-            style={{ marginTop: 30, padding: 12, borderRadius: 12, backgroundColor: Colors?.surfaceContainerHigh || '#eee' }}
-            onPress={() => {
-               const n8nUrl = process.env.EXPO_PUBLIC_N8N_SEND_VERIFICATION_URL || 'https://zore1803.app.n8n.cloud/webhook/send-verification'
-               console.log('[LOQIT-RETRY] Manual refresh triggered');
-               router.replace('/(auth)/onboarding'); // Try to force a route change to break the hang
-            }}
-          >
-            <Text style={{ color: Colors?.primary || '#000', fontSize: 13 }}>Retry Connection</Text>
-          </Pressable>
         </View>
       </View>
     )
