@@ -38,7 +38,11 @@ function Spinner() {
       minHeight: '100vh', display: 'flex', alignItems: 'center',
       justifyContent: 'center', backgroundColor: Colors.background,
     }}>
-      <div style={{ textAlign: 'center' }}>
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', gap: '24px',
+      }}>
+        {/* Shield Icon */}
         <div style={{
           width: '80px', height: '80px', borderRadius: '24px',
           background: `linear-gradient(135deg, ${Colors.primary}22, ${Colors.primary}11)`,
@@ -46,10 +50,28 @@ function Spinner() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: `0 0 40px ${Colors.primary}20`,
           animation: 'pulse 1.8s ease-in-out infinite',
+          margin: '0 auto',
         }}>
           <span className="material-icons" style={{ fontSize: '40px', color: Colors.primary }}>shield</span>
         </div>
-        <div style={{ marginTop: '20px', color: Colors.primary, fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', opacity: 0.8 }}>
+
+        {/* LOQIT Logo */}
+        <img
+          src="/logo.png"
+          alt="LOQIT"
+          style={{
+            height: '28px', width: 'auto', objectFit: 'contain',
+            filter: 'var(--logo-filter)',
+            margin: '0 auto',
+          }}
+        />
+
+        {/* Authenticating Text */}
+        <div style={{
+          color: Colors.primary, fontSize: '12px', fontWeight: 700,
+          letterSpacing: '3px', textTransform: 'uppercase', opacity: 0.6,
+          textAlign: 'center',
+        }}>
           Authenticating
         </div>
       </div>

@@ -80,19 +80,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let isMounted = true
 
     const bootstrap = async () => {
-      const { data, error } = await supabase.auth.getSession()
-      
-      if (error && error.message.toLowerCase().includes('refresh token')) {
-        console.warn('AuthProvider: Invalid refresh token detected. Clearing local session...')
-        await supabase.auth.signOut({ scope: 'local' })
-      }
+      try {
+        const { data, error } = await supabase.auth.getSession()
+        
+        if (error && error.message.toLowerCase().includes('refresh token')) {
+          console.warn('AuthProvider: Invalid refresh token detected. Clearing local session...')
+          await supabase.auth.signOut({ scope: 'local' })
+        }
 
-      if (data.session) {
-        setSession(data.session)
-        await loadProfile(data.session.user.id)
+        if (data.session) {
+          setSession(data.session)
+          await loadProfile(data.session.user.id)
+        }
+      } catch (err) {
+        console.error('[Auth] Bootstrap error:', err)
+      } finally {
+        if (isMounted) {
+          console.log('[Auth] Bootstrap complete. Setting loading=false')
+          setLoading(false)
+        }
       }
-      
-      if (isMounted) setLoading(false)
     }
 
     void bootstrap()
@@ -105,25 +112,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setSession(null)
         setProfile(null)
       }
-      
-      if (!isLoggingIn) {
-        setLoading(false)
-      }
     })
-
-    const safetyTimeout = setTimeout(() => {
-      if (isMounted) {
-        console.log('[Auth] Safety timeout reached. Forcing loading to false.');
-        setLoading(false)
-      }
-    }, 2500)
 
     return () => {
       isMounted = false
-      clearTimeout(safetyTimeout)
       data.subscription.unsubscribe()
     }
-  }, [isLoggingIn])
+  }, [])
+
+  // Independent safety timeout - guaranteed to fire even if bootstrap hangs
+  useEffect(() => {
+    const safetyTimeout = setTimeout(() => {
+      console.warn('[Auth] Safety timeout: forcing loading=false')
+      setLoading(false)
+    }, 5000)
+    return () => clearTimeout(safetyTimeout)
+  }, [])
 
   useEffect(() => {
     const saveTempUser = async () => {
