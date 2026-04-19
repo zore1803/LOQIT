@@ -43,3 +43,6 @@ publicDir = "web/dist"
 
 [userenv.shared]
 VITE_SUPABASE_API_URL = "https://qnyukwxgrvrfwhrsaepj.supabase.co"
+VITE_SUPABASE_URL = "https://qnyukwxgrvrfwhrsaepj.supabase.co"
+VITE_N8N_SEND_VERIFICATION_URL = "https://zore1803.app.n8n.cloud/webhook/send-verification"
+VITE_N8N_VERIFY_OTP_URL = "https://zore1803.app.n8n.cloud/webhook/verify-otp"
