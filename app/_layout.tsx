@@ -58,15 +58,18 @@ function AuthGate() {
       if (myActiveDeviceId) {
          const { data: dev } = await supabase
            .from('devices')
-           .select('status, ble_device_uuid, make, model')
+           .select('status, ble_device_uuid, make, model, remote_lock_requested')
            .eq('id', myActiveDeviceId)
            .maybeSingle()
          
          if (dev?.status === 'lost' || dev?.status === 'stolen') {
            isActuallyLost = true
            activeBleUuid = dev.ble_device_uuid
+         }
 
-           // Show LOQIT lock screen if a passkey has been configured
+         // Show lock screen if device is lost OR if a remote lock was sent from dashboard
+         const shouldLock = (dev?.status === 'lost' || dev?.status === 'stolen' || dev?.remote_lock_requested === true)
+         if (shouldLock) {
            const pkSet = await hasPasskeySet(myActiveDeviceId)
            if (pkSet) {
              const { data: ps } = await supabase
@@ -204,23 +207,30 @@ function AuthGate() {
           const oldStatus = payload.old.status
           const changedId = payload.new.id as string
 
+          // Helper: activate lock screen for this device
+          const activateLockScreen = async (deviceId: string) => {
+            const pkSet = await hasPasskeySet(deviceId)
+            if (pkSet) {
+              const { data: ps } = await supabase
+                .from('protection_settings')
+                .select('lock_message')
+                .eq('device_id', deviceId)
+                .maybeSingle()
+              setLockMessage(ps?.lock_message || undefined)
+              setLockDeviceId(deviceId)
+              setLockScreenActive(true)
+            }
+          }
+
           if (newStatus === 'lost' && oldStatus !== 'lost') {
             void startLostTracking()
             // If this is OUR physical device, show the lock screen
             const myId = await AsyncStorage.getItem('loqit_my_active_device_id')
-            if (myId === changedId) {
-              const pkSet = await hasPasskeySet(myId)
-              if (pkSet) {
-                const { data: ps } = await supabase
-                  .from('protection_settings')
-                  .select('lock_message')
-                  .eq('device_id', myId)
-                  .maybeSingle()
-                setLockMessage(ps?.lock_message || undefined)
-                setLockDeviceId(myId)
-                setLockScreenActive(true)
-              }
-            }
+            if (myId === changedId) await activateLockScreen(myId)
+          } else if (payload.new.remote_lock_requested === true && !payload.old.remote_lock_requested) {
+            // Remote lock command received from the web dashboard
+            const myId = await AsyncStorage.getItem('loqit_my_active_device_id')
+            if (myId === changedId) await activateLockScreen(myId)
           } else if (oldStatus === 'lost' && newStatus !== 'lost') {
             setLockScreenActive(false)
             void supabase

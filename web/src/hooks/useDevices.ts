@@ -22,6 +22,8 @@ export type Device = {
   last_seen_lat: number | null
   last_seen_lng: number | null
   ble_device_uuid: string | null
+  remote_lock_requested?: boolean
+  remote_lock_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -146,6 +148,41 @@ export function useDevices() {
     return result
   }
 
+  const remoteLockDevice = async (id: string, deviceName: string) => {
+    const { error } = await supabase
+      .from('devices')
+      .update({
+        remote_lock_requested: true,
+        remote_lock_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    if (!error && user) {
+      await supabase.from('notifications').insert({
+        user_id: user.id,
+        title: '🔒 Remote Lock Triggered',
+        body: `Lock screen activated on ${deviceName}. Only your LOQIT PIN can dismiss it.`,
+        type: 'remote_lock',
+        reference_id: id,
+      })
+      setDevices((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, remote_lock_requested: true } : d))
+      )
+    }
+    return { error }
+  }
+
+  const clearRemoteLock = async (id: string) => {
+    await supabase
+      .from('devices')
+      .update({ remote_lock_requested: false, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    setDevices((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, remote_lock_requested: false } : d))
+    )
+  }
+
   return {
     devices,
     loading,
@@ -156,5 +193,7 @@ export function useDevices() {
     deleteDevice,
     markAsLost,
     markAsFound,
+    remoteLockDevice,
+    clearRemoteLock,
   }
 }

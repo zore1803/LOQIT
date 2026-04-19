@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Colors } from '../lib/colors'
 import { useDevices, Device } from '../hooks/useDevices'
 import { Button } from '../components/Button'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const STATUS_COLOR: Record<string, string> = {
   lost: '#FF4E4E', stolen: '#FF4E4E',
@@ -22,12 +23,14 @@ const STATUS_ICON: Record<string, string> = {
 
 export function DevicesPage() {
   const navigate = useNavigate()
-  const { devices, loading, markAsLost, markAsFound, deleteDevice } = useDevices()
+  const { devices, loading, markAsLost, markAsFound, deleteDevice, remoteLockDevice } = useDevices()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'registered' | 'lost' | 'recovered'>('all')
+  const [confirmRemoteLock, setConfirmRemoteLock] = useState<Device | null>(null)
+  const [remoteLockSent, setRemoteLockSent] = useState<string | null>(null)
 
   const handleMarkLost = async (device: Device) => {
     setActionLoading(device.id)
@@ -49,6 +52,14 @@ export function DevicesPage() {
     setActionLoading(null)
     setConfirmDelete(null)
     if (selectedDevice?.id === id) setSelectedDevice(null)
+  }
+
+  const handleRemoteLock = async (device: Device) => {
+    setActionLoading(device.id)
+    const { error } = await remoteLockDevice(device.id, `${device.make} ${device.model}`)
+    setActionLoading(null)
+    setConfirmRemoteLock(null)
+    if (!error) setRemoteLockSent(device.id)
   }
 
   const filtered = devices.filter((d) => {
@@ -380,6 +391,47 @@ export function DevicesPage() {
                     Report as Lost
                   </Button>
                 )}
+
+                {/* Remote Lock Button */}
+                <AnimatePresence mode="wait">
+                  {remoteLockSent === selectedDevice.id ? (
+                    <motion.div
+                      key="sent"
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '12px 16px', borderRadius: '10px',
+                        backgroundColor: '#10b98118', border: '1px solid #10b98140',
+                        color: '#10b981', fontSize: '14px', fontWeight: 600,
+                      }}
+                    >
+                      <span className="material-icons" style={{ fontSize: '18px' }}>check_circle</span>
+                      Lock command sent to device
+                    </motion.div>
+                  ) : (
+                    <motion.button
+                      key="btn"
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={() => setConfirmRemoteLock(selectedDevice)}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                        padding: '12px', borderRadius: '10px', border: `1px solid #f59e0b60`,
+                        backgroundColor: '#f59e0b10', color: '#f59e0b',
+                        fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                        width: '100%', transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f59e0b20' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f59e0b10' }}
+                    >
+                      <span className="material-icons" style={{ fontSize: '18px' }}>lock</span>
+                      Remote Lock
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <Button variant="outline" icon="history" onClick={() => navigate(`/devices/${selectedDevice.id}/history`)}>
                     History
@@ -397,6 +449,74 @@ export function DevicesPage() {
           </div>
         </>
       )}
+
+      {/* Remote Lock Confirmation Modal */}
+      <AnimatePresence>
+        {confirmRemoteLock && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={modalOverlayStyle}
+            onClick={() => setConfirmRemoteLock(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.94, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.94, y: 20 }}
+              style={{
+                backgroundColor: Colors.surfaceContainer, borderRadius: '16px',
+                padding: '28px', maxWidth: '420px', width: '90%',
+                border: `1px solid ${Colors.outlineVariant}`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, #0a0a1a 0%, #0f1f3d 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span className="material-icons" style={{ color: '#3D8EFF', fontSize: '24px' }}>lock</span>
+                </div>
+                <div>
+                  <h3 style={{ color: Colors.onSurface, fontSize: '18px', fontWeight: 700, margin: 0 }}>Remote Lock</h3>
+                  <p style={{ color: Colors.onSurfaceVariant, fontSize: '13px', margin: '2px 0 0' }}>
+                    {confirmRemoteLock.make} {confirmRemoteLock.model}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ background: '#3D8EFF12', border: '1px solid #3D8EFF30', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
+                <p style={{ color: Colors.onSurface, fontSize: '14px', lineHeight: 1.6, margin: 0 }}>
+                  This will instantly display a <strong>PIN lock screen</strong> on the device — even if it is not yet marked as lost. The thief will see the LOQIT lock screen and cannot use the phone without your passkey.
+                </p>
+              </div>
+
+              <p style={{ color: Colors.onSurfaceVariant, fontSize: '13px', lineHeight: 1.5, marginBottom: '24px' }}>
+                The device must be online and have the LOQIT app running. Your passkey must already be set on that device for the lock screen to appear.
+              </p>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <Button variant="outline" onClick={() => setConfirmRemoteLock(null)} size="small">Cancel</Button>
+                <button
+                  onClick={() => handleRemoteLock(confirmRemoteLock)}
+                  disabled={actionLoading === confirmRemoteLock.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    padding: '9px 18px', borderRadius: '9px',
+                    background: 'linear-gradient(135deg, #1a2a4a 0%, #3D8EFF 100%)',
+                    border: 'none', color: '#fff', fontSize: '14px', fontWeight: 700,
+                    cursor: actionLoading === confirmRemoteLock.id ? 'not-allowed' : 'pointer',
+                    opacity: actionLoading === confirmRemoteLock.id ? 0.6 : 1,
+                  }}
+                >
+                  <span className="material-icons" style={{ fontSize: '16px' }}>
+                    {actionLoading === confirmRemoteLock.id ? 'sync' : 'lock'}
+                  </span>
+                  {actionLoading === confirmRemoteLock.id ? 'Sending...' : 'Lock Now'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       {confirmDelete && (

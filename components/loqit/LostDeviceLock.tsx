@@ -120,6 +120,12 @@ export function LostDeviceLock({ deviceId, lockMessage, onUnlocked }: Props) {
       if (pin.length < 4) return
       const ok = await verifyDevicePasskey(pin, deviceId)
       if (ok) {
+        // Clear any pending remote lock command so the lock doesn't reappear
+        supabase
+          .from('devices')
+          .update({ remote_lock_requested: false })
+          .eq('id', deviceId)
+          .then(() => {})
         onUnlocked()
       } else {
         setPin('')
