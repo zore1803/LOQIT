@@ -101,15 +101,14 @@ export default function VerifyScreen() {
   }
 
   const verifyDevice = async () => {
-    const normalized = imei.replace(/\D/g, '')
-    if (normalized.length !== 15) {
-      Alert.alert('Invalid IMEI', 'Enter a 15-digit IMEI to verify this device.')
+    if (!imei.trim()) {
+      Alert.alert('Invalid Serial', 'Enter a device serial number to verify this device.')
       return
     }
 
     setLoading(true)
     try {
-      const { data, error } = await supabase.rpc('verify_imei', { p_imei: normalized })
+      const { data, error } = await supabase.rpc('verify_serial', { p_serial: imei })
       if (error) {
         throw new Error(error.message)
       }
@@ -145,12 +144,10 @@ export default function VerifyScreen() {
 
           <TextInput
             style={styles.imeiInput}
-            keyboardType="number-pad"
             value={imei}
-            maxLength={15}
-            placeholder="Enter 15-digit IMEI"
+            placeholder="Enter Hardware Serial Number"
             placeholderTextColor={Colors.outline}
-            onChangeText={(value) => setImei(value.replace(/\D/g, '').slice(0, 15))}
+            onChangeText={(value) => setImei(value.toUpperCase())}
           />
 
           <GradientButton

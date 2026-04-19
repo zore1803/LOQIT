@@ -71,26 +71,7 @@ type UseDeviceResult = {
   refetch: () => Promise<void>
 }
 
-export function isValidIMEI(value: string) {
-  const digits = value.replace(/\D/g, '')
-  if (digits.length !== 15) {
-    return false
-  }
-
-  let sum = 0
-  for (let i = 0; i < digits.length; i += 1) {
-    let digit = Number(digits[i])
-    if (i % 2 === 1) {
-      digit *= 2
-      if (digit > 9) {
-        digit -= 9
-      }
-    }
-    sum += digit
-  }
-
-  return sum % 10 === 0
-}
+// IMEI validation removed as per pure BLE model
 
 export function useDevices() {
   const { user, loading: authLoading } = useAuth()
@@ -214,15 +195,9 @@ export async function registerDevice(input: RegisterDeviceInput): Promise<Device
     throw new Error(`Profile sync failed: ${profileError.message}`)
   }
 
-  const imeiPrimary = input.imei_primary.replace(/\D/g, '')
-  if (!isValidIMEI(imeiPrimary)) {
-    throw new Error('Primary IMEI is invalid.')
-  }
-
-  const imeiSecondary = input.imei_secondary?.replace(/\D/g, '') || null
-  if (imeiSecondary && imeiSecondary.length > 0 && !isValidIMEI(imeiSecondary)) {
-    throw new Error('Secondary IMEI is invalid.')
-  }
+  // IMEI validation gates removed
+  const imeiPrimary = input.imei_primary || `SN-${input.serial_number}`
+  const imeiSecondary = input.imei_secondary || null
 
   const payload = {
     owner_id: userId,
@@ -259,6 +234,9 @@ export async function reportLost(deviceId: string, reportData: LostReportInput):
     .update({
       status: 'lost',
       is_ble_active: true,
+      last_seen_lat: reportData.last_known_lat ?? null,
+      last_seen_lng: reportData.last_known_lng ?? null,
+      last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', deviceId)

@@ -1,9 +1,7 @@
-import { CSSProperties, useState, useRef } from 'react'
+import { CSSProperties, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { Colors } from '../lib/colors'
-import { useDevices, isValidIMEI } from '../hooks/useDevices'
-import { supabase } from '../lib/supabase'
+import { useDevices } from '../hooks/useDevices'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { Input } from '../components/Input'
@@ -56,13 +54,10 @@ export function AddDevicePage() {
   const [state, setState] = useState('')
   const [make, setMake] = useState('')
   const [model, setModel] = useState('')
-  const [imeiPrimary, setImeiPrimary] = useState('')
-  const [imeiSecondary, setImeiSecondary] = useState('')
   const [serialNumber, setSerialNumber] = useState('')
   const [color, setColor] = useState('')
 
-  const imei1Valid = imeiPrimary.length === 15 && isValidIMEI(imeiPrimary)
-  const imei2Valid = !imeiSecondary || (imeiSecondary.length === 15 && isValidIMEI(imeiSecondary))
+  // IMEI validation removed
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,26 +65,7 @@ export function AddDevicePage() {
     setLoading(true)
     setError('')
 
-    // 1. Basic length check
-    if (imeiPrimary.length !== 15) {
-      setError('Primary IMEI must be exactly 15 digits.')
-      setLoading(false)
-      return
-    }
-
-    // 2. Duplicate Check (Network Request)
-    try {
-      const { data: duplicateData, error: duplicateError } = await supabase.rpc('verify_imei', { p_imei: imeiPrimary })
-      
-      if (!duplicateError && duplicateData && duplicateData.registered) {
-        const ownerName = duplicateData.owner_masked || 'another user'
-        setError(`Duplicate Found: This device is already registered by ${ownerName}. Ownership verification required.`)
-        setLoading(false)
-        return
-      }
-    } catch (err) {
-      console.error('Duplicate check failed, proceeding anyway:', err)
-    }
+    // Duplicate check removed
 
     // 3. Register the device
     try {
@@ -97,8 +73,8 @@ export function AddDevicePage() {
         state,
         make,
         model,
-        imei_primary: imeiPrimary,
-        imei_secondary: imeiSecondary || null,
+        imei_primary: `BLE-${serialNumber}`,
+        imei_secondary: null,
         serial_number: serialNumber,
         color: color || null,
         purchase_date: purchaseDate || null,
@@ -216,15 +192,7 @@ export function AddDevicePage() {
     marginTop: '16px',
   }
 
-  const imeiStatusStyle = (isValid: boolean, value: string): CSSProperties => ({
-    fontSize: '13px',
-    marginTop: '8px',
-    fontWeight: 600,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    color: !value ? Colors.onSurfaceVariant : isValid ? Colors.secondary : Colors.error,
-  })
+
 
   return (
     <div style={containerStyle}>
@@ -303,49 +271,7 @@ export function AddDevicePage() {
             />
           </div>
 
-          <div style={rowStyle}>
-            <div>
-              <Input
-                label="Primary IMEI *"
-                placeholder="15-digit IMEI"
-                value={imeiPrimary}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 15)
-                  setImeiPrimary(val)
-                }}
-                maxLength={15}
-                required
-              />
-            </div>
-
-            <div>
-              <Input
-                label="Secondary IMEI (Dual SIM)"
-                placeholder="15-digit IMEI (optional)"
-                value={imeiSecondary}
-                onChange={(e) => setImeiSecondary(e.target.value.replace(/\D/g, '').slice(0, 15))}
-                maxLength={15}
-              />
-              <div style={imeiStatusStyle(imei2Valid, imeiSecondary)}>
-                {!imeiSecondary ? (
-                  <>
-                    <span className="material-icons" style={{ fontSize: '16px' }}>info</span>
-                    Optional for dual SIM phones
-                  </>
-                ) : imei2Valid ? (
-                  <>
-                    <span className="material-icons" style={{ fontSize: '16px' }}>check_circle</span>
-                    Valid IMEI
-                  </>
-                ) : (
-                  <>
-                    <span className="material-icons" style={{ fontSize: '16px' }}>error</span>
-                    Invalid IMEI
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+          {/* IMEI fields removed */}
 
           <div style={rowStyle}>
             <Input
@@ -376,55 +302,13 @@ export function AddDevicePage() {
             </div>
           </div>
 
-          <Card
-            variant="outlined"
-            style={{
-              padding: '20px',
-              marginTop: '8px',
-              background: `linear-gradient(135deg, ${Colors.tertiary}08 0%, transparent 100%)`,
-            }}
-          >
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                background: `linear-gradient(135deg, ${Colors.tertiary}30 0%, ${Colors.tertiary}10 100%)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <span className="material-icons" style={{ color: Colors.tertiary, fontSize: '24px' }}>
-                  info
-                </span>
-              </div>
-              <div>
-                <p style={{ color: Colors.onSurface, fontSize: '15px', marginBottom: '12px', fontWeight: 700 }}>
-                  How to find your IMEI:
-                </p>
-                <ul
-                  style={{
-                    color: Colors.onSurfaceVariant,
-                    fontSize: '14px',
-                    paddingLeft: '20px',
-                    margin: 0,
-                    lineHeight: '1.8',
-                  }}
-                >
-                  <li>Dial <strong>*#06#</strong> on your phone</li>
-                  <li>Check <strong>Settings → About Phone → IMEI</strong></li>
-                  <li>Look on the original box or receipt</li>
-                </ul>
-              </div>
-            </div>
-          </Card>
+          {/* IMEI info card removed */}
 
           <div style={actionsStyle}>
             <Button variant="ghost" onClick={() => navigate('/devices')} style={{ border: `2px solid ${Colors.outlineVariant}` }} icon="close">
               Cancel
             </Button>
-            <Button type="submit" loading={loading} disabled={!imei1Valid || !imei2Valid} icon="check_circle" size="large">
+            <Button type="submit" loading={loading} disabled={!make || !model || !serialNumber} icon="check_circle" size="large">
               Register Device
             </Button>
           </div>

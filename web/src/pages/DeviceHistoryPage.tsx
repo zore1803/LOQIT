@@ -19,7 +19,7 @@ type Device = {
   id: string
   make: string
   model: string
-  imei_primary: string
+  serial_number: string
   status: string
   created_at: string
 }
@@ -41,7 +41,7 @@ export function DeviceHistoryPage() {
     try {
       const { data: dev } = await supabase
         .from('devices')
-        .select('id, make, model, imei_primary, status, created_at')
+        .select('id, make, model, serial_number, status, created_at')
         .eq('id', deviceId)
         .single()
       if (!dev) return
@@ -54,7 +54,7 @@ export function DeviceHistoryPage() {
         id: 'reg',
         type: 'registered',
         title: 'Device Registered',
-        description: `${dev.make} ${dev.model} registered on LOQIT with IMEI ${dev.imei_primary}`,
+        description: `${dev.make} ${dev.model} registered on LOQIT with serial number ${dev.serial_number}`,
         timestamp: dev.created_at,
         icon: 'add_circle',
         color: Colors.secondary,
@@ -147,14 +147,6 @@ export function DeviceHistoryPage() {
     }
   }
 
-  const STATUS_COLOR: Record<string, string> = {
-    registered: Colors.secondary,
-    lost: Colors.error,
-    recovered: Colors.secondary,
-    detection: Colors.tertiary,
-    chat: Colors.primary,
-    status_change: Colors.outline,
-  }
 
   return (
     <div style={{ padding: '32px', maxWidth: '800px', margin: '0 auto' }}>
@@ -167,7 +159,7 @@ export function DeviceHistoryPage() {
         </button>
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: 700, color: Colors.onSurface, margin: 0 }}>Device Audit Trail</h1>
-          {device && <p style={{ color: Colors.onSurfaceVariant, fontSize: '15px', margin: '4px 0 0' }}>{device.make} {device.model} · IMEI {device.imei_primary}</p>}
+          {device && <p style={{ color: Colors.onSurfaceVariant, fontSize: '15px', margin: '4px 0 0' }}>{device.make} {device.model} · Serial {device.serial_number}</p>}
         </div>
       </div>
 

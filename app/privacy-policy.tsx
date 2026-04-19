@@ -25,7 +25,7 @@ export default function PrivacyPolicyScreen() {
 
         <Section title="Information We Collect">
           <BulletPoint text="Account Information: Name, email address, phone number" />
-          <BulletPoint text="Device Information: IMEI, serial number, make, model" />
+          <BulletPoint text="Device Information: hardware serial number, make, model" />
           <BulletPoint text="Location Data: GPS coordinates when scanning or reporting" />
           <BulletPoint text="Aadhaar Data: Encrypted hash for identity verification (never stored in plain text)" />
           <BulletPoint text="Bluetooth Data: BLE beacon signals for device proximity detection" />

@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Colors } from '../../lib/colors'
 import { supabase } from '../../lib/supabase'
 import { Card } from '../../components/Card'
@@ -24,8 +24,8 @@ type LostReport = {
   assigned_officer_id: string | null
   assigned_at: string | null
   case_notes: string | null
-  devices: { make: string; model: string; imei_primary: string; status: string } | null
-  profiles: { full_name: string; phone_number: string | null } | null
+  devices: Array<{ make: string; model: string; serial_number: string; status: string }> | null
+  profiles: Array<{ full_name: string; phone_number: string | null }> | null
 }
 
 type OfficerProfile = { id: string; full_name: string | null }
@@ -84,7 +84,7 @@ export function PoliceReportsPage() {
           id, device_id, owner_id, last_known_lat, last_known_lng, last_known_address,
           incident_description, police_complaint_number, reward_amount, is_active,
           reported_at, resolved_at, case_status, assigned_officer_id, assigned_at, case_notes,
-          devices(make, model, imei_primary, status),
+          devices(make, model, serial_number, status),
           profiles(full_name, phone_number)
         `)
         .order('reported_at', { ascending: false })
@@ -151,10 +151,10 @@ export function PoliceReportsPage() {
     try {
       const details = `
 Case ID: ${selectedReport.id}
-Device: ${selectedReport.devices?.make} ${selectedReport.devices?.model}
-IMEI: ${selectedReport.devices?.imei_primary}
-Owner: ${selectedReport.profiles?.full_name}
-Phone: ${selectedReport.profiles?.phone_number || 'N/A'}
+Device: ${selectedReport.devices?.[0]?.make} ${selectedReport.devices?.[0]?.model}
+Serial: ${selectedReport.devices?.[0]?.serial_number}
+Owner: ${selectedReport.profiles?.[0]?.full_name}
+Phone: ${selectedReport.profiles?.[0]?.phone_number || 'N/A'}
 Status: ${selectedReport.case_status || 'unassigned'}
 Reported: ${new Date(selectedReport.reported_at).toLocaleString()}
 ${selectedReport.resolved_at ? `Resolved: ${new Date(selectedReport.resolved_at).toLocaleString()}` : ''}
@@ -207,14 +207,14 @@ Case Notes: ${selectedReport.case_notes || 'None'}
 
   <h2>Device Information</h2>
   <div class="grid">
-    <div class="field"><div class="field-label">Device</div><div class="field-value">${selectedReport.devices?.make} ${selectedReport.devices?.model}</div></div>
-    <div class="field"><div class="field-label">IMEI</div><div class="field-value">${selectedReport.devices?.imei_primary}</div></div>
+    <div class="field"><div class="field-label">Device</div><div class="field-value">${selectedReport.devices?.[0]?.make} ${selectedReport.devices?.[0]?.model}</div></div>
+    <div class="field"><div class="field-label">Serial Number</div><div class="field-value">${selectedReport.devices?.[0]?.serial_number}</div></div>
   </div>
 
   <h2>Owner Details</h2>
   <div class="grid">
-    <div class="field"><div class="field-label">Name</div><div class="field-value">${selectedReport.profiles?.full_name}</div></div>
-    <div class="field"><div class="field-label">Phone</div><div class="field-value">${selectedReport.profiles?.phone_number || 'N/A'}</div></div>
+    <div class="field"><div class="field-label">Name</div><div class="field-value">${selectedReport.profiles?.[0]?.full_name}</div></div>
+    <div class="field"><div class="field-label">Phone</div><div class="field-value">${selectedReport.profiles?.[0]?.phone_number || 'N/A'}</div></div>
   </div>
 
   <h2>Case Details</h2>
@@ -308,10 +308,10 @@ Case Notes: ${selectedReport.case_notes || 'None'}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: '16px', color: Colors.onSurface, marginBottom: '4px' }}>
-                    {r.devices?.make} {r.devices?.model}
+                    {r.devices?.[0]?.make} {r.devices?.[0]?.model}
                   </div>
                   <div style={{ fontSize: '13px', color: Colors.outline, marginBottom: '10px' }}>
-                    IMEI: {r.devices?.imei_primary} · {r.profiles?.full_name}
+                    Serial: {r.devices?.[0]?.serial_number} · {r.profiles?.[0]?.full_name}
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <StatusBadge status={r.case_status || 'unassigned'} />
@@ -364,8 +364,8 @@ Case Notes: ${selectedReport.case_notes || 'None'}
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '78vh', overflowY: 'auto' }}>
               <div>
                 <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Device</div>
-                <div style={{ fontSize: '20px', fontWeight: 700 }}>{selectedReport.devices?.make} {selectedReport.devices?.model}</div>
-                <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginTop: '2px' }}>IMEI: {selectedReport.devices?.imei_primary}</div>
+                <div style={{ fontSize: '20px', fontWeight: 700 }}>{selectedReport.devices?.[0]?.make} {selectedReport.devices?.[0]?.model}</div>
+                <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginTop: '2px' }}>Serial: {selectedReport.devices?.[0]?.serial_number}</div>
               </div>
 
               <div>
@@ -411,9 +411,9 @@ Case Notes: ${selectedReport.case_notes || 'None'}
 
               <div>
                 <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Owner</div>
-                <div style={{ fontSize: '15px', fontWeight: 600 }}>{selectedReport.profiles?.full_name}</div>
-                {selectedReport.profiles?.phone_number && (
-                  <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginTop: '4px' }}>{selectedReport.profiles.phone_number}</div>
+                <div style={{ fontSize: '15px', fontWeight: 600 }}>{selectedReport.profiles?.[0]?.full_name}</div>
+                {selectedReport.profiles?.[0]?.phone_number && (
+                  <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginTop: '4px' }}>{selectedReport.profiles[0].phone_number}</div>
                 )}
               </div>
 

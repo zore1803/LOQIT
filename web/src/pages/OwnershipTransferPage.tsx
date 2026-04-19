@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Colors } from '../lib/colors'
@@ -13,7 +13,6 @@ export function OwnershipTransferPage() {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
   const [recipientEmail, setRecipientEmail] = useState('')
   const [reason, setReason] = useState<'selling' | 'gifting' | 'other'>('selling')
-  const [notes, setNotes] = useState('')
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [loading, setLoading] = useState(false)
   const [recipientProfile, setRecipientProfile] = useState<{ id: string; full_name: string } | null>(null)
@@ -128,7 +127,7 @@ export function OwnershipTransferPage() {
                       <span className="material-icons" style={{ fontSize: '28px', color: selectedDevice?.id === d.id ? Colors.primary : Colors.outline }}>smartphone</span>
                       <div>
                         <div style={{ fontWeight: 700, color: Colors.onSurface }}>{d.make} {d.model}</div>
-                        <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant }}>IMEI: {d.imei_primary}</div>
+                        <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant }}>Serial: {d.serial_number}</div>
                       </div>
                       {selectedDevice?.id === d.id && (
                         <span className="material-icons" style={{ marginLeft: 'auto', color: Colors.primary }}>check_circle</span>
@@ -203,7 +202,7 @@ export function OwnershipTransferPage() {
 
               <div style={{ background: Colors.surfaceContainerHigh, borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
                 <div style={{ fontWeight: 600, color: Colors.onSurface, marginBottom: '4px' }}>{selectedDevice.make} {selectedDevice.model}</div>
-                <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant }}>IMEI: {selectedDevice.imei_primary}</div>
+                <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant }}>Serial: {selectedDevice.serial_number}</div>
                 <div style={{ fontSize: '13px', color: Colors.tertiary, marginTop: '4px', textTransform: 'capitalize' }}>Reason: {reason}</div>
               </div>
 

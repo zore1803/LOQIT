@@ -46,8 +46,6 @@ export default function AddDeviceScreen() {
 
   const [make, setMake] = useState<(typeof MAKE_OPTIONS)[number] | ''>('')
   const [model, setModel] = useState('')
-  const [imeiPrimary, setImeiPrimary] = useState('')
-  const [imeiSecondary, setImeiSecondary] = useState('')
   const [serialNumber, setSerialNumber] = useState('')
   const [color, setColor] = useState('')
   const [stateCode, setStateCode] = useState('')
@@ -58,14 +56,7 @@ export default function AddDeviceScreen() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const primaryValid = useMemo(
-    () => imeiPrimary.length === 15 && isValidIMEI(imeiPrimary),
-    [imeiPrimary]
-  )
-  const secondaryValid = useMemo(
-    () => !imeiSecondary || (imeiSecondary.length === 15 && isValidIMEI(imeiSecondary)),
-    [imeiSecondary]
-  )
+  // IMEI validation removed as per pure BLE model
 
   const onDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
@@ -88,15 +79,7 @@ export default function AddDeviceScreen() {
       return
     }
 
-    if (!primaryValid) {
-      setError('Primary IMEI is invalid.')
-      return
-    }
-
-    if (!secondaryValid) {
-      setError('Secondary IMEI is invalid.')
-      return
-    }
+    // IMEI validation removed
 
     setSubmitting(true)
     setError(null)
@@ -106,8 +89,8 @@ export default function AddDeviceScreen() {
         state: stateCode,
         make,
         model,
-        imei_primary: imeiPrimary,
-        imei_secondary: imeiSecondary || null,
+        imei_primary: `BLE-${serialNumber}`, // Internal placeholder for legacy DB compatibility
+        imei_secondary: null,
         serial_number: serialNumber,
         color: color || null,
         purchase_date: purchaseDate ? formatDate(purchaseDate) : null,
@@ -153,39 +136,7 @@ export default function AddDeviceScreen() {
           placeholderTextColor={Colors.outline}
         />
 
-        <Text style={styles.label}>Primary IMEI</Text>
-        <View style={styles.validationRow}>
-          <TextInput
-            style={[styles.input, styles.validationInput]}
-            value={imeiPrimary}
-            onChangeText={(value) => setImeiPrimary(value.replace(/\D/g, '').slice(0, 15))}
-            keyboardType="number-pad"
-            placeholder="15 digits"
-            placeholderTextColor={Colors.outline}
-          />
-          <MaterialIcons
-            name={primaryValid ? 'check-circle' : 'cancel'}
-            size={22}
-            color={primaryValid ? Colors.secondary : Colors.error}
-          />
-        </View>
-
-        <Text style={styles.label}>Secondary IMEI (optional)</Text>
-        <View style={styles.validationRow}>
-          <TextInput
-            style={[styles.input, styles.validationInput]}
-            value={imeiSecondary}
-            onChangeText={(value) => setImeiSecondary(value.replace(/\D/g, '').slice(0, 15))}
-            keyboardType="number-pad"
-            placeholder="15 digits"
-            placeholderTextColor={Colors.outline}
-          />
-          <MaterialIcons
-            name={secondaryValid ? 'check-circle' : 'cancel'}
-            size={22}
-            color={secondaryValid ? Colors.secondary : Colors.error}
-          />
-        </View>
+        {/* IMEI fields removed */}
 
         <Text style={styles.label}>Serial Number</Text>
         <TextInput

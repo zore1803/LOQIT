@@ -1,6 +1,11 @@
 import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { AuthError, Session, User } from '@supabase/supabase-js'
+import Constants from 'expo-constants'
+
+const extra = (Constants.expoConfig?.extra as any) || {}
+const N8N_SEND_URL = extra.n8nSendUrl || 'https://zore1803.app.n8n.cloud/webhook/send-verification'
+const N8N_VERIFY_URL = extra.n8nVerifyUrl || 'https://zore1803.app.n8n.cloud/webhook/verify-otp'
 
 import * as WebBrowser from 'expo-web-browser'
 import * as Linking from 'expo-linking'
@@ -155,7 +160,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setTempUser({ email: cleanEmail, password, fullName, phoneNumber })
 
         try {
-          const n8nUrl = process.env.EXPO_PUBLIC_N8N_SEND_VERIFICATION_URL || 'https://zore1803.app.n8n.cloud/webhook/send-verification'
+          const n8nUrl = process.env.EXPO_PUBLIC_N8N_SEND_VERIFICATION_URL || N8N_SEND_URL
           const res = await fetch(n8nUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -164,8 +169,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
           
           if (!res.ok) throw new Error('Verification service unreachable')
         } catch (err) {
-          console.error('[Auth] Failed to trigger n8n verification flow:', err)
-          return { error: { name: 'AuthError', message: 'Small issue sending mail. Please try again.' } as any }
+          console.error('[Auth-DEBUG] n8n fetch error details:', err)
+          return { error: { name: 'AuthError', message: `Verification failed: ${err instanceof Error ? err.message : 'Network Error'}` } as any }
         }
 
         return { error: null }
@@ -180,7 +185,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (!error && data.user) {
           const { data: profileData } = await supabase.from('profiles').select('email_verified').eq('id', data.user.id).maybeSingle()
           if (!profileData || !profileData.email_verified) {
-            const n8nUrl = process.env.EXPO_PUBLIC_N8N_SEND_VERIFICATION_URL
+            const n8nUrl = process.env.EXPO_PUBLIC_N8N_SEND_VERIFICATION_URL || N8N_SEND_URL
             if (n8nUrl) {
               fetch(n8nUrl, {
                 method: 'POST',
@@ -198,14 +203,28 @@ export function AuthProvider({ children }: PropsWithChildren) {
           setIsLoggingIn(true)
           setLoading(true)
           const redirectUrl = Linking.createURL('auth/callback')
+          console.log('[Auth-DEBUG] Google Redirect URL:', redirectUrl)
           
           const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+            options: { 
+              redirectTo: redirectUrl, 
+              queryParams: { access_type: 'offline', prompt: 'consent' }
+            },
           })
 
-          if (error) { setIsLoggingIn(false); setLoading(false); return { error }; }
-          if (!data?.url) { setIsLoggingIn(false); setLoading(false); return { error: new AuthError('No redirect URL returned') }; }
+          if (error) {
+            console.error('[Auth-DEBUG] Google Sign-In Error:', error)
+            setIsLoggingIn(false); 
+            setLoading(false); 
+            return { error }; 
+          }
+          if (!data?.url) {
+            console.error('[Auth-DEBUG] No redirect URL returned from Supabase')
+            setIsLoggingIn(false); 
+            setLoading(false); 
+            return { error: new AuthError('No redirect URL returned') }; 
+          }
 
           const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
 
@@ -245,15 +264,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
           setLoading(false)
           return { error: null }
         } catch (err) {
+          console.error('[Auth-DEBUG] Google Sign-In caught error:', err)
           setIsLoggingIn(false)
           setLoading(false)
-          return { error: err as AuthError }
+          return { error: { name: 'AuthError', message: `Google Sign-In failed: ${err instanceof Error ? err.message : 'Unknown Error'}` } as any }
         }
       },
       verifyOtp: async (email, token) => {
         const normalizedEmail = email.trim().toLowerCase()
         try {
-          const response = await fetch(process.env.EXPO_PUBLIC_N8N_VERIFY_OTP_URL!, {
+          const verifyUrl = process.env.EXPO_PUBLIC_N8N_VERIFY_OTP_URL || N8N_VERIFY_URL
+          const response = await fetch(verifyUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: normalizedEmail, otp: token }),
@@ -321,7 +342,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       },
       resendOtp: async (email) => {
         try {
-          const n8nUrl = process.env.EXPO_PUBLIC_N8N_SEND_VERIFICATION_URL || 'https://zore1803.app.n8n.cloud/webhook/send-verification'
+          const n8nUrl = process.env.EXPO_PUBLIC_N8N_SEND_VERIFICATION_URL || N8N_SEND_URL
           await fetch(n8nUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -329,7 +350,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
           })
           return { error: null }
         } catch (err) {
-          return { error: { name: 'AuthError', message: 'Failed to resend code.' } as any }
+          console.error('[Auth-DEBUG] resendOtp fetch error:', err)
+          return { error: { name: 'AuthError', message: `Resend failed: ${err instanceof Error ? err.message : 'Network Error'}` } as any }
         }
       },
       signOut: async () => {

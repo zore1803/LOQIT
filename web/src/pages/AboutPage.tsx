@@ -2,7 +2,6 @@ import { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Colors } from '../lib/colors'
 import { Card } from '../components/Card'
-import { Button } from '../components/Button'
 
 export function AboutPage() {
   const navigate = useNavigate()
@@ -108,7 +107,7 @@ export function AboutPage() {
           Key Features
         </h3>
         <ul style={listStyle}>
-          <li>Register your devices with IMEI and serial numbers</li>
+          <li>Register your devices with unique hardware serial numbers</li>
           <li>Report devices as lost with detailed incident information</li>
           <li>BLE-based passive scanning network (mobile app only)</li>
           <li>Anonymous chat system for device recovery coordination</li>
@@ -123,7 +122,7 @@ export function AboutPage() {
           How It Works
         </h3>
         <ol style={listStyle}>
-          <li>Register your device with its IMEI and details</li>
+          <li>Register your device with its serial number and details</li>
           <li>If your device is lost, mark it as lost in the app</li>
           <li>Other LOQIT users' phones passively scan for your device</li>
           <li>When found, you receive an alert with location info</li>

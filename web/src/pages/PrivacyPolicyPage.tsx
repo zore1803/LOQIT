@@ -75,7 +75,7 @@ export function PrivacyPolicyPage() {
         <p style={textStyle}>We collect the following information to provide our services:</p>
         <ul style={listStyle}>
           <li>Account Information: Email, name, phone number</li>
-          <li>Device Information: IMEI, serial number, make, model</li>
+          <li>Device Information: Serial number, hardware ID, make, model</li>
           <li>Location Data: When reporting lost devices or detecting devices</li>
           <li>Aadhaar Verification: Last 4 digits only, for identity verification</li>
         </ul>
@@ -106,7 +106,7 @@ export function PrivacyPolicyPage() {
         <h3 style={sectionTitleStyle}>Data Security</h3>
         <p style={textStyle}>
           We implement industry-standard security measures to protect your data. All communications
-          are encrypted, and sensitive information like IMEI numbers are hashed when possible.
+          are encrypted, and sensitive identifiers are hashed when possible.
         </p>
       </Card>
 

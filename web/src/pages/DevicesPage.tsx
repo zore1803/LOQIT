@@ -53,7 +53,7 @@ export function DevicesPage() {
 
   const filtered = devices.filter((d) => {
     const matchSearch = !search
-      || `${d.make} ${d.model} ${d.imei_primary} ${d.serial_number} ${d.loqit_key || ''}`.toLowerCase().includes(search.toLowerCase())
+      || `${d.make} ${d.model} ${d.serial_number} ${d.loqit_key || ''}`.toLowerCase().includes(search.toLowerCase())
     const matchStatus =
       statusFilter === 'all' ? true
       : statusFilter === 'lost' ? (d.status === 'lost' || d.status === 'stolen')
@@ -99,7 +99,7 @@ export function DevicesPage() {
         <div style={{ position: 'relative', flex: 1, maxWidth: '360px' }}>
           <span className="material-icons" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '18px', color: Colors.outline }}>search</span>
           <input
-            placeholder="Search by name, IMEI, serial..."
+            placeholder="Search by name, serial, key..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -158,7 +158,7 @@ export function DevicesPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ backgroundColor: Colors.surfaceContainerHigh }}>
-                {['Device', 'Primary IMEI', 'Status', 'LOQIT Key', 'Last Seen', 'Registered', ''].map((col) => (
+                {['Device', 'Serial Number', 'Status', 'LOQIT Key', 'Last Seen', 'Registered', ''].map((col) => (
                   <th key={col} style={{
                     padding: '11px 16px 11px', textAlign: 'left',
                     fontSize: '11px', fontWeight: 700, color: Colors.onSurfaceVariant,
@@ -205,7 +205,7 @@ export function DevicesPage() {
 
                     {/* IMEI */}
                     <td style={{ padding: '13px 16px' }}>
-                      <span style={{ fontSize: '13px', color: Colors.onSurfaceVariant, fontFamily: 'monospace' }}>{d.imei_primary}</span>
+                      <span style={{ fontSize: '13px', color: Colors.onSurfaceVariant, fontFamily: 'monospace' }}>{d.serial_number}</span>
                     </td>
 
                     {/* Status */}
@@ -343,9 +343,8 @@ export function DevicesPage() {
               <div style={{ backgroundColor: Colors.surfaceContainer, borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
                 {[
                   { label: 'LOQIT Key', value: selectedDevice.loqit_key || '—', mono: true, color: selectedDevice.loqit_key ? Colors.primary : undefined },
-                  { label: 'Primary IMEI', value: selectedDevice.imei_primary, mono: true },
-                  { label: 'Secondary IMEI', value: selectedDevice.imei_secondary || '—', mono: true },
                   { label: 'Serial Number', value: selectedDevice.serial_number, mono: true },
+                  { label: 'BLE Hardware ID', value: selectedDevice.ble_device_uuid || '—', mono: true },
                   { label: 'State / Region', value: selectedDevice.state || '—' },
                   { label: 'Color', value: selectedDevice.color || '—' },
                   { label: 'Purchase Date', value: selectedDevice.purchase_date ? new Date(selectedDevice.purchase_date).toLocaleDateString('en-IN') : '—' },

@@ -44,7 +44,7 @@ Full compatibility with modern Android foreground service requirements:
 
 - **Passive Mesh Tracking**: Every LOQIT user is part of a global recovery mesh.
 - **Police Intelligence Terminal**: A web-based command center for law enforcement with real-time "Red Alert" GPS tracking.
-- **Hyper-Secure Verification**: Ownership verification backed by **Aadhaar/IMEI** cross-referencing.
+- **Hardware Identification**: Link devices via Serial Number with Aadhaar-backed ownership.
 - **Anonymous Recovery Chat**: Coordinated, end-to-end encrypted chat between finders and owners.
 
 ---

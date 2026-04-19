@@ -305,6 +305,7 @@ function AuthGate() {
           <Pressable 
             style={{ marginTop: 30, padding: 12, borderRadius: 12, backgroundColor: Colors?.surfaceContainerHigh || '#eee' }}
             onPress={() => {
+               const n8nUrl = process.env.EXPO_PUBLIC_N8N_SEND_VERIFICATION_URL || 'https://zore1803.app.n8n.cloud/webhook/send-verification'
                console.log('[LOQIT-RETRY] Manual refresh triggered');
                router.replace('/(auth)/onboarding'); // Try to force a route change to break the hang
             }}
@@ -336,7 +337,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <StatusBar style="auto" />
+        <StatusBar style="dark" />
         <AuthGate />
       </AuthProvider>
     </ThemeProvider>

@@ -201,7 +201,7 @@ function WebSettings() {
             </div>
             <div className="loqit-settings-s-text">
               <div className="loqit-settings-s-title">Registered devices</div>
-              <div className="loqit-settings-s-sub">View and manage all linked IMEIs</div>
+              <div className="loqit-settings-s-sub">View and manage all linked devices</div>
             </div>
             <span className="loqit-settings-chev">›</span>
           </div>

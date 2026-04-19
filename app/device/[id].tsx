@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import * as Location from 'expo-location'
 import {
   ActivityIndicator,
   Alert,
@@ -24,7 +25,7 @@ import { supabase } from '../../lib/supabase'
 import { bleService } from '../../services/ble.service'
 import { useTheme } from '../../hooks/useTheme'
 
-const LOCATIONIQ_API_KEY = process.env.EXPO_PUBLIC_LOCATIONIQ_API_KEY ?? ''
+const LOCATIONIQ_API_KEY = process.env.EXPO_PUBLIC_LOCATIONIQ_API_KEY || 'pk.b5ada85774117c8a8d65dd878a514073'
 
 function StaticMapView({ latitude, longitude, zoom = 14, isDark }: { latitude: number; longitude: number; zoom?: number; isDark: boolean }) {
   if (!LOCATIONIQ_API_KEY) {
@@ -79,7 +80,27 @@ export default function DeviceDetailScreen() {
     }
     setSubmitting(true)
     try {
-      await reportLost(device.id, { ...lostForm, reward_amount: lostForm.reward_amount ? Number(lostForm.reward_amount) : null, last_known_lat: device.last_seen_lat, last_known_lng: device.last_seen_lng })
+      // 1. Capture current location for the report
+      let currentLat = device.last_seen_lat;
+      let currentLng = device.last_seen_lng;
+      
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          currentLat = loc.coords.latitude;
+          currentLng = loc.coords.longitude;
+        }
+      } catch (locErr) {
+        console.warn('[DeviceDetail] Could not get fresh location for report:', locErr);
+      }
+
+      await reportLost(device.id, { 
+        ...lostForm, 
+        reward_amount: lostForm.reward_amount ? Number(lostForm.reward_amount) : null, 
+        last_known_lat: currentLat, 
+        last_known_lng: currentLng 
+      })
       setLostModal(false); await refetch(); Alert.alert('Success', 'Device marked as lost.')
     } catch (e: any) { Alert.alert('Error', e.message) } finally { setSubmitting(false) }
   }
@@ -106,8 +127,8 @@ export default function DeviceDetailScreen() {
               <Text style={{ color: safeStatus ? colors.secondary : colors.error, fontFamily: FontFamily.bodyMedium, fontSize: 12 }}>{device.status.toUpperCase()}</Text>
             </View>
           </View>
-          <Text style={[styles.imeiLabel, { color: colors.onSurfaceVariant }]}>PRIMARY IMEI</Text>
-          <Text style={[styles.imeiValue, { color: colors.onSurfaceVariant }]}>{device.imei_primary}</Text>
+          <Text style={[styles.imeiLabel, { color: colors.onSurfaceVariant }]}>BLE DEVICE UUID</Text>
+          <Text style={[styles.imeiValue, { color: colors.onSurfaceVariant }]}>{device.ble_device_uuid || 'GENERIC'}</Text>
         </View>
 
         <View style={styles.infoGrid}>

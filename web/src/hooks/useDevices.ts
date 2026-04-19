@@ -21,30 +21,12 @@ export type Device = {
   last_seen_at: string | null
   last_seen_lat: number | null
   last_seen_lng: number | null
+  ble_device_uuid: string | null
   created_at: string
   updated_at: string
 }
 
-export function isValidIMEI(value: string) {
-  const digits = value.replace(/\D/g, '')
-  return digits.length === 15
-}
-
-export function isLuhnValid(value: string) {
-  const digits = value.replace(/\D/g, '')
-  if (digits.length !== 15) return false
-
-  let sum = 0
-  for (let i = 0; i < digits.length; i++) {
-    let digit = parseInt(digits[i], 10)
-    if (i % 2 === 1) {
-      digit *= 2
-      if (digit > 9) digit -= 9
-    }
-    sum += digit
-  }
-  return sum % 10 === 0
-}
+// Legacy IMEI validation removed
 
 export function useDevices() {
   const { user } = useAuth()

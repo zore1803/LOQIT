@@ -12,7 +12,7 @@ type BeaconLog = {
   reported_at: string
   device_make?: string
   device_model?: string
-  device_imei?: string
+  device_serial?: string
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -108,7 +108,7 @@ export function LiveMapPage() {
         reported_at: d.last_seen_at,
         device_make: d.make,
         device_model: d.model,
-        device_imei: d.serial_number
+        device_serial: d.serial_number
       })
     })
 
@@ -138,7 +138,7 @@ export function LiveMapPage() {
             reported_at: log.reported_at,
             device_make: log.devices?.make,
             device_model: log.devices?.model,
-            device_imei: log.devices?.serial_number
+            device_serial: log.devices?.serial_number
           })
         }
       })

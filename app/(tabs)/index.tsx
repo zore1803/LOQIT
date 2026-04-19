@@ -181,7 +181,7 @@ export default function HomeScreen() {
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
             {devices.map(d => (
-              <DeviceCard key={d.id} {...d} imei={d.imei_primary} onPress={id => router.push({ pathname: '/device/[id]', params: { id } } as any)} />
+              <DeviceCard key={d.id} {...d} serial={d.serial_number || 'N/A'} onPress={id => router.push({ pathname: '/device/[id]', params: { id } } as any)} />
             ))}
             {!devices.length && (
               <Pressable style={[styles.emptyCard, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]} onPress={() => router.push('/device/add')}>

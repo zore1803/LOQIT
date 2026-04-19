@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
 /* ─── Types ─────────────────────────────────────────── */
-type Device = { id: string; make: string; model: string; status: string; imei_primary: string }
+type Device = { id: string; make: string; model: string; status: string; serial_number: string }
 type ProtectionSettings = {
   id?: string
   device_id: string
@@ -131,7 +131,7 @@ export function AntiTheftPage() {
   /* Load user devices */
   useEffect(() => {
     if (!user) return
-    supabase.from('devices').select('id,make,model,status,imei_primary').eq('owner_id', user.id)
+    supabase.from('devices').select('id,make,model,status,serial_number').eq('owner_id', user.id)
       .then(({ data }) => {
         if (data && data.length > 0) {
           setDevices(data)
@@ -211,7 +211,7 @@ I, ${profile?.full_name || '[Owner Name]'}, am writing to formally report the th
 
 DEVICE DETAILS (LOQIT-Verified):
   Make / Model    : ${device?.make ?? '[Make]'} ${device?.model ?? '[Model]'}
-  IMEI (Primary)  : ${device?.imei_primary ?? '[IMEI]'}
+  Serial Number   : ${device?.serial_number ?? '[Serial Number]'}
   LOQIT Device ID : ${selectedDeviceId}
   Current Status  : ${device?.status?.toUpperCase() ?? 'UNKNOWN'}
   Reported On     : ${now} IST
@@ -221,7 +221,7 @@ ${recentEvents}
 
 I request you to:
 1. Register an FIR under relevant sections of the IPC.
-2. Coordinate with telecom authorities to trace the IMEI number.
+2. Coordinate with telecom authorities to trace using the hardware serial number.
 3. Reference the LOQIT Anti-Theft event log for digital evidence.
 
 I am prepared to cooperate fully in the investigation and submit all LOQIT-verified data to the authorities upon request.

@@ -152,6 +152,8 @@ export function PoliceDashboardPage() {
 
   useEffect(() => {
     loadDashboardData()
+    const interval = setInterval(loadDashboardData, 15000)
+    return () => clearInterval(interval)
   }, [])
 
   const loadDashboardData = async () => {
@@ -383,12 +385,17 @@ export function PoliceDashboardPage() {
                     position={{ lat: device.latitude, lng: device.longitude }}
                     onClick={() => setSelectedDevice(device)}
                     icon={{
-                       path: google.maps.SymbolPath.CIRCLE,
-                       fillColor: '#FF3D71', // EMERGENCY RED
-                       fillOpacity: 1,
-                       strokeColor: '#FFFFFF',
-                       strokeWeight: 2.5,
-                       scale: 9,
+                      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+                          <circle cx="20" cy="20" r="8" fill="#FF3D71" stroke="white" stroke-width="2"/>
+                          <circle cx="20" cy="20" r="18" fill="none" stroke="#FF3D71" stroke-width="2" opacity="0.6">
+                            <animate attributeName="r" from="8" to="18" dur="1.5s" begin="0s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" from="0.6" to="0" dur="1.5s" begin="0s" repeatCount="indefinite" />
+                          </circle>
+                        </svg>
+                      `),
+                      scaledSize: new google.maps.Size(40, 40),
+                      anchor: new google.maps.Point(20, 20),
                     }}
                   />
                 ))}

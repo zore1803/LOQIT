@@ -19,7 +19,7 @@ type DeviceCardProps = {
   id: string
   make: string
   model: string
-  imei: string
+  serial: string
   status: 'registered' | 'lost' | 'found' | 'recovered' | 'stolen'
   onPress?: (id: string) => void
   style?: StyleProp<ViewStyle>
@@ -30,14 +30,14 @@ export function DeviceCard({
   id,
   make,
   model,
-  imei,
+  serial,
   status,
   onPress,
   style,
   width = 200,
 }: DeviceCardProps) {
   const { colors } = useTheme()
-  const imeiTail = imei?.length > 4 ? imei.slice(-4) : imei || '0000'
+  const serialTail = serial?.length > 4 ? serial.slice(-4) : serial || '0000'
   const scale = useRef(new Animated.Value(1)).current
 
   const statusConfig = {
@@ -84,7 +84,7 @@ export function DeviceCard({
 
         <View style={styles.info}>
           <Text style={[styles.deviceName, { color: colors.onSurface }]} numberOfLines={1}>{`${make} ${model}`}</Text>
-          <Text style={[styles.imeiText, { color: colors.outline }]}>{`IMEI •••• ${imeiTail}`}</Text>
+          <Text style={[styles.imeiText, { color: colors.outline }]}>{`SN •••• ${serialTail}`}</Text>
         </View>
 
         <View style={styles.arrow}>

@@ -212,7 +212,7 @@ export function HomePage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: `${Colors.surfaceContainerHigh}` }}>
-                  {['Device', 'IMEI', 'Status', 'LOQIT Key', 'Registered'].map(col => (
+                  {['Device', 'Serial Number', 'Status', 'LOQIT Key', 'Registered'].map(col => (
                     <th key={col} style={{
                       padding: '11px 20px', textAlign: 'left', fontSize: '11px',
                       fontWeight: 700, color: Colors.onSurfaceVariant,
@@ -251,7 +251,7 @@ export function HomePage() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: '13px 20px', fontSize: '13px', color: Colors.onSurfaceVariant, fontFamily: 'monospace' }}>{d.imei_primary}</td>
+                      <td style={{ padding: '13px 20px', fontSize: '13px', color: Colors.onSurfaceVariant, fontFamily: 'monospace' }}>{d.serial_number || 'N/A'}</td>
                       <td style={{ padding: '13px 20px' }}>
                         <span style={{
                           padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 700,

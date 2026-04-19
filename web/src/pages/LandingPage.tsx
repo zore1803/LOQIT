@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, CSSProperties } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, useInView, useAnimation, AnimatePresence } from 'framer-motion'
+import { motion, useInView, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import { Colors } from '../lib/colors'
 import { ThemeToggle } from '../components/ThemeToggle'
@@ -42,7 +42,6 @@ function BLEParticleCanvas() {
 
     const spawnParticle = (cx: number, cy: number) => {
       const angle = Math.random() * Math.PI * 2
-      const dist = 30 + Math.random() * 80
       const colors = [cp, cs, ct, ca]
       particles.push({
         x: cx + Math.cos(angle) * (20 + Math.random() * 30),
@@ -272,7 +271,6 @@ function DownloadBtn({ icon, label, sub, href, primary }: { icon: string; label:
 export function LandingPage() {
   const navigate = useNavigate()
   const [stats, setStats] = useState({ devices: 0, recovered: 0, users: 0, reports: 0 })
-  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -294,7 +292,6 @@ export function LandingPage() {
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-    setMenuOpen(false)
   }
 
   return (
@@ -597,7 +594,7 @@ export function LandingPage() {
             <FeatureCard delay={0.1} icon="notifications_active" color={Colors.secondary} title="Instant Push Alerts" desc="Push notifications fire the moment a beacon matching your device is detected nearby, anywhere in the network." />
             <FeatureCard delay={0.2} icon="chat_bubble" color={Colors.tertiary} title="Secure Anonymous Chat" desc="Communicate with the finder through end-to-end encrypted, anonymous messaging — no personal details exposed." />
             <FeatureCard delay={0.3} icon="psychology" color="#c084fc" title="AI Risk Scoring" desc="Groq-powered chat analysis automatically flags suspicious patterns, evasion, and extortion signals for police review." />
-            <FeatureCard delay={0.4} icon="shield" color={Colors.accent} title="IMEI Registration" desc="Register your device IMEI for ownership proof. Duplicate registrations are flagged and reviewed by officers." />
+            <FeatureCard delay={0.4} icon="shield" color={Colors.accent} title="Serial Number Registration" desc="Register your device Serial Number for ownership proof. Duplicate registrations are flagged and reviewed by officers." />
             <FeatureCard delay={0.5} icon="local_police" color={Colors.error} title="Police Command Center" desc="Law enforcement gets a full dashboard — case assignment, analytics, recovery tracking, and real-time alerts." />
           </div>
         </div>
@@ -628,7 +625,7 @@ export function LandingPage() {
               See the complete recovery journey — from registration to reunion.
             </p>
           </motion.div>
-          <StoryStep step="01" icon="app_registration" title="Register Your Device" desc="Add your phone's IMEI, model, and details to LOQIT. Your ownership is verified and stored securely on Supabase." color={Colors.primary} delay={0} align="left" />
+          <StoryStep step="01" icon="app_registration" title="Register Your Device" desc="Add your phone's Serial Number, model, and details to LOQIT. Your ownership is verified and stored securely on Supabase." color={Colors.primary} delay={0} align="left" />
           <StoryStep step="02" icon="sentiment_very_dissatisfied" title="Device Goes Missing" desc="Mark your device as lost with one tap. It enters Lost Mode — broadcasting a silent BLE beacon that the LOQIT network watches for." color={Colors.error} delay={0.1} align="right" />
           <StoryStep step="03" icon="my_location" title="Finder Detects It Nearby" desc="Any LOQIT user nearby gets an automatic push notification. Their app silently records location and triggers a finder alert to you." color={Colors.secondary} delay={0.2} align="left" />
           <StoryStep step="04" icon="chat" title="Secure Chat Initiated" desc="A one-time anonymous chat room opens. No names, no numbers shared. AI risk scoring monitors the conversation for safety." color={Colors.tertiary} delay={0.3} align="right" />
@@ -732,14 +729,14 @@ const DEMO_STEPS = [
     icon: 'app_registration',
     title: 'Register a Device',
     color: Colors.primary,
-    desc: 'Add your phone details and IMEI to establish ownership.',
+    desc: 'Add your phone details and Serial Number to establish ownership.',
     mockup: (
       <div style={{ padding: '24px' }}>
         <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginBottom: '16px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '1px' }}>Device Registration</div>
         {[
           { label: 'Brand', value: 'Samsung' },
           { label: 'Model', value: 'Galaxy S24' },
-          { label: 'IMEI', value: '358***4567890' },
+          { label: 'Serial Number', value: '358***4567890' },
           { label: 'Color', value: 'Phantom Black' },
         ].map(f => (
           <div key={f.label} style={{ marginBottom: '14px' }}>
@@ -763,7 +760,7 @@ const DEMO_STEPS = [
           <span className="material-icons" style={{ fontSize: '36px', color: Colors.error }}>report_problem</span>
         </div>
         <div style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Samsung Galaxy S24</div>
-        <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginBottom: '24px' }}>IMEI: 358***890</div>
+        <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginBottom: '24px' }}>SN: 358***890</div>
         <div style={{ background: `${Colors.error}22`, border: `1px solid ${Colors.error}44`, borderRadius: '14px', padding: '16px', marginBottom: '16px' }}>
           <div style={{ color: Colors.error, fontWeight: 700, marginBottom: '4px' }}>Activate Lost Mode</div>
           <div style={{ fontSize: '12px', color: Colors.onSurfaceVariant }}>BLE beacon will broadcast on the LOQIT network</div>

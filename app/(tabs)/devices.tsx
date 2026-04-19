@@ -70,7 +70,7 @@ export default function DevicesScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl tintColor={colors.primary} refreshing={loading} onRefresh={() => void refetch()} />}
         renderItem={({ item }) => (
-          <DeviceCard id={item.id} make={item.make} model={item.model} imei={item.imei_primary} status={item.status} width="100%" onPress={id => router.push({ pathname: '/device/[id]', params: { id } })} />
+          <DeviceCard id={item.id} make={item.make} model={item.model} serial={item.serial_number} status={item.status} width="100%" onPress={id => router.push({ pathname: '/device/[id]', params: { id } })} />
         )}
         ListEmptyComponent={!loading ? (
           <Pressable style={[styles.emptyCard, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]} onPress={() => router.push('/device/add')}>

@@ -16,7 +16,7 @@ type SearchResult = {
 
 export function PoliceSearchPage() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchType, setSearchType] = useState<'all' | 'imei' | 'serial' | 'complaint' | 'phone'>('all')
+  const [searchType, setSearchType] = useState<'all' | 'serial' | 'complaint' | 'phone'>('all')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -30,11 +30,11 @@ export function PoliceSearchPage() {
 
     try {
       // Search devices
-      if (searchType === 'all' || searchType === 'imei' || searchType === 'serial') {
+      if (searchType === 'all' || searchType === 'serial') {
         const { data: devices } = await supabase
           .from('devices')
           .select('*, profiles(full_name, phone_number)')
-          .or(`imei_primary.ilike.%${searchQuery}%,serial_number.ilike.%${searchQuery}%,make.ilike.%${searchQuery}%,model.ilike.%${searchQuery}%`)
+          .or(`serial_number.ilike.%${searchQuery}%,make.ilike.%${searchQuery}%,model.ilike.%${searchQuery}%,ble_device_uuid.ilike.%${searchQuery}%`)
           .limit(20)
 
         devices?.forEach((device: any) => {
@@ -44,8 +44,8 @@ export function PoliceSearchPage() {
             title: `${device.make} ${device.model}`,
             subtitle: `Status: ${device.status.toUpperCase()}`,
             details: [
-              `IMEI: ${device.imei_primary}`,
               `Serial: ${device.serial_number}`,
+              `HW ID: ${device.ble_device_uuid || 'GENERIC'}`,
               `Owner: ${device.profiles?.full_name || 'Unknown'}`,
             ],
             data: device,
@@ -57,7 +57,7 @@ export function PoliceSearchPage() {
       if (searchType === 'all' || searchType === 'complaint') {
         const { data: reports } = await supabase
           .from('lost_reports')
-          .select('*, devices(make, model, imei_primary), profiles(full_name, phone_number)')
+          .select('*, devices(make, model, serial_number), profiles(full_name, phone_number)')
           .or(`police_complaint_number.ilike.%${searchQuery}%,incident_description.ilike.%${searchQuery}%`)
           .limit(20)
 
@@ -198,7 +198,7 @@ export function PoliceSearchPage() {
           Advanced Search
         </h1>
         <p style={{ fontSize: '15px', color: Colors.onSurfaceVariant }}>
-          Search by IMEI, serial number, complaint number, phone number, or owner name
+          Search by serial number, BLE hardware ID, complaint number, or owner name
         </p>
       </div>
 
@@ -207,7 +207,6 @@ export function PoliceSearchPage() {
           <div style={filterButtonsStyle}>
             {[
               { value: 'all', label: 'All' },
-              { value: 'imei', label: 'IMEI' },
               { value: 'serial', label: 'Serial Number' },
               { value: 'complaint', label: 'Complaint Number' },
               { value: 'phone', label: 'Phone Number' },

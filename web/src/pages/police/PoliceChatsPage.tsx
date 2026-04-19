@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Colors } from '../../lib/colors'
 import { supabase } from '../../lib/supabase'
 import { Card } from '../../components/Card'
@@ -13,7 +13,7 @@ type ChatRoomData = {
   created_at: string
   riskScore?: ChatAnalysis | null
   riskLoading?: boolean
-  devices: { make: string; model: string; imei_primary: string } | null
+  devices: { make: string; model: string; serial_number: string } | null
   profiles: { full_name: string; phone_number: string | null } | null
 }
 
@@ -81,7 +81,7 @@ export function PoliceChatsPage() {
         .from('chat_rooms')
         .select(`
           id, owner_id, device_id, is_active, created_at,
-          devices(make, model, imei_primary),
+          devices(make, model, serial_number),
           profiles(full_name, phone_number)
         `)
         .order('created_at', { ascending: false })
@@ -123,10 +123,7 @@ export function PoliceChatsPage() {
     setAnalysisLoading(true)
     setAnalysisError('')
     try {
-      const conversation = realMsgs
-        .map(m => `${m.sender_role === 'owner' ? 'Owner' : 'Finder'}: ${m.content}`)
-        .join('\n')
-      const result = await analyzeChat(conversation)
+      const result = await analyzeChat(realMsgs as any)
       setAnalysis(result)
       // Update the room's risk score in list
       setRooms(prev => prev.map(r => r.id === roomId ? { ...r, riskScore: result } : r))

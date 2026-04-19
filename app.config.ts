@@ -28,18 +28,22 @@ const config: ExpoConfig = {
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
-  userInterfaceStyle: 'dark',
+  userInterfaceStyle: 'light',
 
   extra: {
     eas: {
       projectId: 'd631b2e5-564c-42cb-aa6d-0cd7dd71e09a',
     },
+    supabaseUrl: 'https://qnyukwxgrvrfwhrsaepj.supabase.co',
+    supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFueXVrd3hncnZyZndocnNhZXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTkyNTUsImV4cCI6MjA5MTQ3NTI1NX0.82yHHZCoWOeui_zrltOqx-onq6s5G_j0emhhZobM4oE',
+    n8nSendUrl: 'https://zore1803.app.n8n.cloud/webhook/send-verification',
+    n8nVerifyUrl: 'https://zore1803.app.n8n.cloud/webhook/verify-otp',
   },
 
   splash: {
     image: './assets/splash-icon.png',
     resizeMode: 'contain',
-    backgroundColor: '#111318',
+    backgroundColor: '#FFFFFF',
   },
   ios: {
     bundleIdentifier: 'com.loqit.app',
@@ -102,6 +106,12 @@ const config: ExpoConfig = {
         locationWhenInUsePermission:
           'Allow LOQIT to access location while scanning for nearby devices.',
         isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
+        foregroundService: {
+          notificationTitle: "LOQIT Active Tracking",
+          notificationBody: "Your lost device is being tracked in the background.",
+          notificationColor: "#3D8EFF"
+        }
       },
     ],
     [

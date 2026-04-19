@@ -18,7 +18,7 @@ const THEME_STORAGE_KEY = 'loqit_user_theme'
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemColorScheme = useColorScheme()
-  const [theme, setThemeState] = useState<ThemeMode>('light') // Default to premium Light theme
+  const [theme, setThemeState] = useState<ThemeMode>('light') // Forced default to Light
 
   useEffect(() => {
     // Load theme from storage on start

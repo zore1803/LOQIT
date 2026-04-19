@@ -14,10 +14,10 @@ type Device = {
   last_seen_lat: number | null
   last_seen_lng: number | null
   owner_id: string
-  profiles: {
+  profiles: Array<{
     full_name: string
     phone_number: string | null
-  } | null
+  }> | null
   lost_reports: Array<{
     id: string
     reported_at: string
@@ -79,11 +79,10 @@ export function PoliceDevicesPage() {
     if (!searchQuery) return true
     const search = searchQuery.toLowerCase()
     return (
-      device.imei_primary.toLowerCase().includes(search) ||
       device.serial_number.toLowerCase().includes(search) ||
       device.make.toLowerCase().includes(search) ||
       device.model.toLowerCase().includes(search) ||
-      device.profiles?.full_name?.toLowerCase().includes(search) ||
+      device.profiles?.[0]?.full_name?.toLowerCase().includes(search) ||
       device.lost_reports[0]?.police_complaint_number?.toLowerCase().includes(search)
     )
   })
@@ -215,7 +214,7 @@ export function PoliceDevicesPage() {
           </span>
           <input
             type="text"
-            placeholder="Search by IMEI, serial, owner, complaint number..."
+            placeholder="Search by serial, owner, complaint number..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={searchInputStyle}
@@ -283,7 +282,7 @@ export function PoliceDevicesPage() {
                         <span className="material-icons" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '6px' }}>
                           person
                         </span>
-                        {device.profiles?.full_name || 'Unknown Owner'}
+                        {device.profiles?.[0]?.full_name || 'Unknown Owner'}
                       </div>
                     </div>
                     <span
@@ -303,9 +302,9 @@ export function PoliceDevicesPage() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                     <div style={{ fontSize: '13px' }}>
-                      <div style={{ color: Colors.outline, marginBottom: '4px' }}>IMEI</div>
+                      <div style={{ color: Colors.outline, marginBottom: '4px' }}>Hardware ID</div>
                       <div style={{ color: Colors.onSurface, fontWeight: 500, fontFamily: 'monospace' }}>
-                        {device.imei_primary}
+                        SN-{device.serial_number}
                       </div>
                     </div>
                     <div style={{ fontSize: '13px' }}>
@@ -359,9 +358,9 @@ export function PoliceDevicesPage() {
                         View Location
                       </button>
                     )}
-                    {device.profiles?.phone_number && (
+                    {device.profiles?.[0]?.phone_number && (
                       <a
-                        href={`tel:${device.profiles.phone_number}`}
+                        href={`tel:${device.profiles[0].phone_number}`}
                         onClick={(e) => e.stopPropagation()}
                         style={{
                           flex: 1,
@@ -443,14 +442,14 @@ export function PoliceDevicesPage() {
                     <span className="material-icons" style={{ fontSize: '18px', verticalAlign: 'middle', marginRight: '8px', color: Colors.primary }}>
                       person
                     </span>
-                    {selectedDevice.profiles?.full_name || 'Unknown'}
+                    {selectedDevice.profiles?.[0]?.full_name || 'Unknown'}
                   </div>
-                  {selectedDevice.profiles?.phone_number && (
+                  {selectedDevice.profiles?.[0]?.phone_number && (
                     <div style={{ fontSize: '15px', color: Colors.onSurface }}>
                       <span className="material-icons" style={{ fontSize: '18px', verticalAlign: 'middle', marginRight: '8px', color: Colors.primary }}>
                         phone
                       </span>
-                      {selectedDevice.profiles.phone_number}
+                      {selectedDevice.profiles[0].phone_number}
                     </div>
                   )}
                 </div>
@@ -461,12 +460,7 @@ export function PoliceDevicesPage() {
                   <div style={{ fontSize: '12px', color: Colors.outline, marginBottom: '8px', textTransform: 'uppercase', fontWeight: 600 }}>
                     Identifiers
                   </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '12px', color: Colors.outline, marginBottom: '4px' }}>IMEI Number</div>
-                    <div style={{ fontSize: '14px', color: Colors.onSurface, fontWeight: 500, fontFamily: 'monospace' }}>
-                      {selectedDevice.imei_primary}
-                    </div>
-                  </div>
+                  {/* IMEI removed */}
                   <div>
                     <div style={{ fontSize: '12px', color: Colors.outline, marginBottom: '4px' }}>Serial Number</div>
                     <div style={{ fontSize: '14px', color: Colors.onSurface, fontWeight: 500, fontFamily: 'monospace' }}>
