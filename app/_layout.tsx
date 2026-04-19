@@ -12,6 +12,7 @@ import { bleService } from '../services/ble.service'
 import { disableBackgroundBleScanTask, enableBackgroundBleScanTask } from '../services/backgroundBleTask'
 import { enableProtectionTask } from '../services/protectionTask'
 import { startLostTracking, stopLostTracking } from '../services/lostTrackingTask'
+import { LostDeviceLock, hasPasskeySet } from '../components/loqit/LostDeviceLock'
 
 import { FontFamily } from '../constants/typography'
 import * as Location from 'expo-location'
@@ -40,6 +41,10 @@ function AuthGate() {
   const segments = useSegments()
   const router = useRouter()
 
+  const [lockScreenActive, setLockScreenActive] = useState(false)
+  const [lockDeviceId, setLockDeviceId] = useState<string | null>(null)
+  const [lockMessage, setLockMessage] = useState<string | undefined>()
+
   const bootstrapBleBackground = useCallback(async () => {
     try {
       if (!session) return
@@ -53,13 +58,26 @@ function AuthGate() {
       if (myActiveDeviceId) {
          const { data: dev } = await supabase
            .from('devices')
-           .select('status, ble_device_uuid')
+           .select('status, ble_device_uuid, make, model')
            .eq('id', myActiveDeviceId)
            .maybeSingle()
          
          if (dev?.status === 'lost' || dev?.status === 'stolen') {
            isActuallyLost = true
            activeBleUuid = dev.ble_device_uuid
+
+           // Show LOQIT lock screen if a passkey has been configured
+           const pkSet = await hasPasskeySet(myActiveDeviceId)
+           if (pkSet) {
+             const { data: ps } = await supabase
+               .from('protection_settings')
+               .select('lock_message')
+               .eq('device_id', myActiveDeviceId)
+               .maybeSingle()
+             setLockMessage(ps?.lock_message || undefined)
+             setLockDeviceId(myActiveDeviceId)
+             setLockScreenActive(true)
+           }
          }
       }
 
@@ -170,7 +188,7 @@ function AuthGate() {
       }
     });
 
-    // Listen for device status changes (for OTHER owner devices to start/stop scanning tasks)
+    // Listen for device status changes (starts/stops tracking, activates lock screen)
     const channel = supabase
       .channel('other-devices-status')
       .on(
@@ -181,23 +199,37 @@ function AuthGate() {
           table: 'devices',
           filter: `owner_id=eq.${session.user.id}`,
         },
-        (payload) => {
+        async (payload) => {
           const newStatus = payload.new.status
           const oldStatus = payload.old.status
-          
+          const changedId = payload.new.id as string
+
           if (newStatus === 'lost' && oldStatus !== 'lost') {
             void startLostTracking()
+            // If this is OUR physical device, show the lock screen
+            const myId = await AsyncStorage.getItem('loqit_my_active_device_id')
+            if (myId === changedId) {
+              const pkSet = await hasPasskeySet(myId)
+              if (pkSet) {
+                const { data: ps } = await supabase
+                  .from('protection_settings')
+                  .select('lock_message')
+                  .eq('device_id', myId)
+                  .maybeSingle()
+                setLockMessage(ps?.lock_message || undefined)
+                setLockDeviceId(myId)
+                setLockScreenActive(true)
+              }
+            }
           } else if (oldStatus === 'lost' && newStatus !== 'lost') {
-            // Check if any other devices are still lost
+            setLockScreenActive(false)
             void supabase
               .from('devices')
               .select('id')
               .eq('owner_id', session.user.id)
               .eq('status', 'lost')
               .then(({ data }) => {
-                if (!data || data.length === 0) {
-                  void stopLostTracking()
-                }
+                if (!data || data.length === 0) void stopLostTracking()
               })
           }
         }
@@ -322,11 +354,17 @@ function AuthGate() {
       handsetIdentifier={handsetIdentifier} 
       onPaired={(deviceId) => {
         console.log(`[LOQIT] Handset successfully paired with device: ${deviceId}`);
-        // Bootstrap BLE again after pairing if needed
         bootstrapBleBackground();
       }}
     >
       <Slot />
+      {lockScreenActive && lockDeviceId && (
+        <LostDeviceLock
+          deviceId={lockDeviceId}
+          lockMessage={lockMessage}
+          onUnlocked={() => setLockScreenActive(false)}
+        />
+      )}
     </PairingGate>
   )
 }

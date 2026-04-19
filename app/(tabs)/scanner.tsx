@@ -328,7 +328,7 @@ export default function ScannerScreen() {
           <View key={item.beaconId} style={[styles.deviceCard, { backgroundColor: colors.surfaceContainerLow }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={[styles.deviceIconWrap, { backgroundColor: `${colors.primary}24` }]}><MaterialIcons name="bluetooth-searching" size={18} color={colors.primary} /></View>
-              <View style={{ flex: 1 }}><Text style={[styles.deviceNameStyle, { color: colors.onSurface }]}>{item.make ? `${item.make} ${item.model}` : 'Unknown Device'}</Text><Text style={[styles.beaconIdText, { color: colors.outline }]}>{`Beacon: ${item.beaconId}`}</Text></View>
+              <View style={{ flex: 1 }}><Text style={[styles.deviceNameStyle, { color: colors.onSurface }]}>{item.make ? `${item.make} ${item.model}` : 'LOQIT Device'}</Text><Text style={[styles.beaconIdText, { color: colors.outline }]}>{item.make ? `Beacon: ${item.beaconId}` : `ID: ${item.beaconId.slice(0, 16)}…`}</Text></View>
               <View style={{ alignItems: 'flex-end', gap: 2 }}>
                 <View style={[styles.distanceBadge, { backgroundColor: item.rssi > -60 ? `${colors.secondary}20` : `${colors.outlineVariant}20` }]}>
                   <Text style={[styles.distanceText, { color: item.rssi > -60 ? colors.secondary : colors.onSurfaceVariant }]}>{item.distanceMeters ? `~${item.distanceMeters.toFixed(1)}m` : '---'}</Text>
