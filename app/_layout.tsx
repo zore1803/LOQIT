@@ -1,5 +1,5 @@
 import { ActivityIndicator, Platform, StyleSheet, View, Text, Pressable, NativeModules } from 'react-native'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -54,41 +54,41 @@ function AuthGate() {
 
       await bleService.requestScanPermissions()
       const myActiveDeviceId = await AsyncStorage.getItem('loqit_my_active_device_id')
-      
+
       let isActuallyLost = false
       let activeBleUuid = null
 
       if (myActiveDeviceId) {
-         const { data: dev } = await supabase
-           .from('devices')
-           .select('status, ble_device_uuid, make, model, remote_lock_requested')
-           .eq('id', myActiveDeviceId)
-           .maybeSingle()
-         
-         if (dev?.status === 'lost' || dev?.status === 'stolen') {
-           isActuallyLost = true
-           activeBleUuid = dev.ble_device_uuid
-         }
+        const { data: dev } = await supabase
+          .from('devices')
+          .select('status, ble_device_uuid, make, model, remote_lock_requested')
+          .eq('id', myActiveDeviceId)
+          .maybeSingle()
 
-         // Show lock screen if device is lost OR if a remote lock was sent from dashboard
-         const shouldLock = (dev?.status === 'lost' || dev?.status === 'stolen' || dev?.remote_lock_requested === true)
-         if (shouldLock) {
-           const pkSet = await hasPasskeySet(myActiveDeviceId)
-           if (pkSet) {
-             const { data: ps } = await supabase
-               .from('protection_settings')
-               .select('lock_message')
-               .eq('device_id', myActiveDeviceId)
-               .maybeSingle()
-             setLockMessage(ps?.lock_message || undefined)
-             setLockDeviceId(myActiveDeviceId)
-             setLockScreenActive(true)
-           }
-         }
+        if (dev?.status === 'lost' || dev?.status === 'stolen') {
+          isActuallyLost = true
+          activeBleUuid = dev.ble_device_uuid
+        }
+
+        // Show lock screen if device is lost OR if a remote lock was sent from dashboard
+        const shouldLock = (dev?.status === 'lost' || dev?.status === 'stolen' || dev?.remote_lock_requested === true)
+        if (shouldLock) {
+          const pkSet = await hasPasskeySet(myActiveDeviceId)
+          if (pkSet) {
+            const { data: ps } = await supabase
+              .from('protection_settings')
+              .select('lock_message')
+              .eq('device_id', myActiveDeviceId)
+              .maybeSingle()
+            setLockMessage(ps?.lock_message || undefined)
+            setLockDeviceId(myActiveDeviceId)
+            setLockScreenActive(true)
+          }
+        }
       }
 
       const locallyBroadcasting = await bleService.isBroadcastingMode()
-      
+
       if (isActuallyLost && activeBleUuid) {
         console.log('[LOQIT] Boot: Device is LOST on server. Starting beacon...');
         try {
@@ -97,7 +97,7 @@ function AuthGate() {
         } catch (broadcastErr) {
           console.warn('[LOQIT] Boot: Beacon failed (non-fatal):', broadcastErr)
         }
-        
+
         // Safety: Start lockdown service after a short delay on boot
         if (Platform.OS === 'android') {
           setTimeout(() => {
@@ -111,9 +111,9 @@ function AuthGate() {
           }, 2000);
         }
       } else if (locallyBroadcasting) {
-        await bleService.restoreBroadcastingFromStorage().catch(() => {})
+        await bleService.restoreBroadcastingFromStorage().catch(() => { })
       }
-      
+
       // ALWAYS enable background scanning — even if broadcasting
       await enableBackgroundBleScanTask()
 
@@ -136,11 +136,16 @@ function AuthGate() {
       // ALWAYS start foreground scanning - every LOQIT user is a scout
       // Even lost devices scan so two lost devices can find each other
       console.log('[LOQIT] Starting always-on foreground BLE scan...');
-      const startAutoScan = () => {
-        bleService.scanForLOQITDevices((beaconId, rssi) => {
-          console.log(`[LOQIT-AUTO] Detected: ${beaconId} RSSI: ${rssi} dBm`);
-        }).catch(err => console.warn('[LOQIT-AUTO] Scan cycle error (will retry):', err));
+      const startAutoScan = async () => {
+        try {
+          await bleService.scanForLOQITDevices((beaconId, rssi) => {
+            console.log(`[LOQIT-AUTO] Detected: ${beaconId} RSSI: ${rssi} dBm`);
+          });
+        } catch (err) {
+          console.warn('[LOQIT-AUTO] Scan cycle error:', err);
+        }
       };
+
       startAutoScan();
       // Restart scan every 30s to keep it alive (Android kills idle scans)
       if ((globalThis as any).__loqitScanInterval) {
@@ -151,13 +156,13 @@ function AuthGate() {
     } catch (error) {
       console.error('[LOQIT] BLE bootstrap failed (non-fatal):', error)
     }
-  }, [session, profile, isLoggingIn])
+  }, [session, profile])
 
   useEffect(() => {
     if (!session) return
     let cancelled = false
     void bootstrapBleBackground()
-    
+
     // Feature: 2-Minute Location Heartbeat
     let locationInterval: NodeJS.Timeout | null = null;
     const runLocationPing = async () => {
@@ -181,7 +186,7 @@ function AuthGate() {
 
     // Trigger immediately and then every 2 minutes
     runLocationPing();
-    locationInterval = setInterval(runLocationPing, 120000); 
+    locationInterval = setInterval(runLocationPing, 120000);
 
 
     // NEW: Robust listener for 'THIS' physical device status (triggers immediate location report)
@@ -289,15 +294,15 @@ function AuthGate() {
         console.error('[AuthGate] setSession error:', error)
       } else {
         console.log('[AuthGate] Session set successfully! Waiting for sync...');
-        
+
         // Safety: Wait for up to 3 seconds for the session to populate in our context
         let syncAttempts = 0;
         while (syncAttempts < 30) {
           const { data: { session: currentSession } } = await supabase.auth.getSession();
           if (currentSession) {
-             console.log('[AuthGate] Session synced! Moving to tabs...');
-             router.replace('/(tabs)')
-             break;
+            console.log('[AuthGate] Session synced! Moving to tabs...');
+            router.replace('/(tabs)')
+            break;
           }
           await new Promise(res => setTimeout(res, 100));
           syncAttempts++;
@@ -343,7 +348,7 @@ function AuthGate() {
     const inAuthGroup = currentGroup === '(auth)'
     const inTabsGroup = currentGroup === '(tabs)'
     const isOtpScreen = segments[1] === 'otp-verify'
-    
+
     // Log the current state for debugging
     console.log(`[AuthGate] State: ${session ? 'Logged In' : 'Logged Out'}, Group: ${currentGroup}, Verified: ${profile?.email_verified}`);
 
@@ -356,16 +361,16 @@ function AuthGate() {
 
     // 2. If session exists, handle verification
     if (session) {
-      const isGoogleUser = session?.user?.app_metadata?.provider === 'google' || 
-                           session?.user?.identities?.some(id => id.provider === 'google');
-      
+      const isGoogleUser = session?.user?.app_metadata?.provider === 'google' ||
+        session?.user?.identities?.some(id => id.provider === 'google');
+
       const isVerified = isGoogleUser || profile?.email_verified;
 
       // Force unverified non-google users to OTP
       if (!isVerified && !isOtpScreen && !inAuthGroup) {
-         console.log('[AuthGate] User unverified, forcing OTP...');
-         router.replace({ pathname: '/(auth)/otp-verify', params: { email: session.user.email } });
-         return;
+        console.log('[AuthGate] User unverified, forcing OTP...');
+        router.replace({ pathname: '/(auth)/otp-verify', params: { email: session.user.email } });
+        return;
       }
 
       // If verified but stuck in Auth, go to Tabs
@@ -381,25 +386,29 @@ function AuthGate() {
   }, [loading, router, segments, session, profile, isLoggingIn])
 
   const [handsetIdentifier, setHandsetIdentifier] = useState<string | null>(null)
+  const handsetIdRef = useRef(false)
 
   useEffect(() => {
     const getIdentity = async () => {
       try {
         const id = await getHandsetIdentifier()
+        handsetIdRef.current = true
         setHandsetIdentifier(id)
       } catch (error) {
         console.error('[AuthGate] Failed to get device identity:', error)
+        handsetIdRef.current = true
         setHandsetIdentifier('unknown-device')
       }
     }
-    
+
     getIdentity()
 
     // Emergency Timeout: If device ID is still null after 5 seconds, use a fallback
     const safetyTimer = setTimeout(() => {
-      if (!handsetIdentifier) {
+      if (!handsetIdRef.current) {
         console.warn('[AuthGate] Handset ID hung. Using safety fallback.')
         setHandsetIdentifier(`hset-safe-${Date.now()}`)
+        handsetIdRef.current = true
       }
     }, 5000)
 
@@ -408,31 +417,61 @@ function AuthGate() {
 
   // Auto-scan is handled in bootstrapBleBackground with a 30s restart loop
 
-  // Debug check for the exact reason for the loading screen
-  if (loading || isLoggingIn || isProcessingDeepLink || !handsetIdentifier) {
-    console.log(`[AuthGate] Initialising. Reason: loading=${loading}, loggingIn=${isLoggingIn}, deepLink=${isProcessingDeepLink}, handsetID=${!!handsetIdentifier}`);
-    
+  const [forceHideLoading, setForceHideLoading] = useState(false)
+
+  useEffect(() => {
+    // Safety auto-skip: If stuck on loading for > 3.5 seconds, allow bypass
+    const timer = setTimeout(() => {
+      setForceHideLoading(true)
+    }, 3500)
+    return () => clearTimeout(timer)
+  }, [loading, isLoggingIn])
+
+  // --- UPDATED LOADING LOGIC ---
+  if ((loading || isLoggingIn || isProcessingDeepLink) && !forceHideLoading) {
+    const statusText = isProcessingDeepLink
+      ? 'Syncing Deep Link...'
+      : isLoggingIn
+        ? 'Signing in...'
+        : 'Checking Session...';
+
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors?.primary || '#000'} />
-        <View style={{ marginTop: 20, alignItems: 'center' }}>
-          <Text style={{ color: Colors?.primary || '#000', fontFamily: FontFamily?.headingBold || 'System' }}>Initialising LOQIT Security...</Text>
-          <Text style={{ color: Colors?.outline || '#888', fontSize: 10, marginTop: 8 }}>
-            Status: {(isLoggingIn || isProcessingDeepLink) ? 'Syncing Profile...' : loading ? 'Checking Session...' : 'Verifying Hardware...'}
+        <ActivityIndicator size="large" color={Colors?.primary || '#3D8EFF'} />
+        <View style={{ marginTop: 20, alignItems: 'center', paddingHorizontal: 40 }}>
+          <Text style={{
+            color: Colors?.onSurface || '#1A1C1E',
+            fontFamily: FontFamily?.headingBold || 'System',
+            fontSize: 20,
+            textAlign: 'center'
+          }}>
+            LOQIT
           </Text>
+          <Text style={{
+            color: Colors?.onSurfaceVariant || '#44474E',
+            fontSize: 14,
+            marginTop: 12,
+            textAlign: 'center'
+          }}>
+            {statusText}
+          </Text>
+
+          <Pressable 
+            onPress={() => setForceHideLoading(true)}
+            style={{ marginTop: 40, padding: 10, backgroundColor: `${Colors.primary}15`, borderRadius: 12 }}
+          >
+            <Text style={{ color: Colors?.primary, fontFamily: FontFamily?.bodyMedium, fontSize: 13 }}>
+              Enter Dashboard Anyway
+            </Text>
+          </Pressable>
         </View>
       </View>
     )
   }
 
+  // WRAPPER REMOVAL: Temporarily bypassing PairingGate to see if it's the bottleneck
   return (
-    <PairingGate 
-      handsetIdentifier={handsetIdentifier} 
-      onPaired={(deviceId) => {
-        console.log(`[LOQIT] Handset successfully paired with device: ${deviceId}`);
-        bootstrapBleBackground();
-      }}
-    >
+    <>
       <Slot />
       {lockScreenActive && lockDeviceId && (
         <LostDeviceLock
@@ -441,13 +480,47 @@ function AuthGate() {
           onUnlocked={() => setLockScreenActive(false)}
         />
       )}
-    </PairingGate>
+    </>
   )
 }
 
+import { 
+  Sora_400Regular,
+  Sora_600SemiBold,
+  Sora_700Bold,
+  useFonts as useSora 
+} from '@expo-google-fonts/sora'
+import { 
+  DMSans_400Regular,
+  DMSans_500Medium,
+  useFonts as useDMSans 
+} from '@expo-google-fonts/dm-sans'
+import { 
+  JetBrainsMono_500Medium,
+  useFonts as useMono 
+} from '@expo-google-fonts/jetbrains-mono'
+import * as SplashScreen from 'expo-splash-screen'
+
+// Prevent splash screen from auto-hiding until fonts are ready
+SplashScreen.preventAutoHideAsync().catch(() => {})
+
 export default function RootLayout() {
-  const fontsLoaded = true 
-  
+  const [soraLoaded] = useSora({ Sora_400Regular, Sora_600SemiBold, Sora_700Bold })
+  const [dmSansLoaded] = useDMSans({ DMSans_400Regular, DMSans_500Medium })
+  const [monoLoaded] = useMono({ JetBrainsMono_500Medium })
+
+  const fontsLoaded = soraLoaded && dmSansLoaded && monoLoaded
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync().catch(() => {})
+    }
+  }, [fontsLoaded])
+
+  if (!fontsLoaded) {
+    return null
+  }
+
   return (
     <ThemeProvider>
       <AuthProvider>
