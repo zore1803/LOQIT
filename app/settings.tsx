@@ -210,15 +210,36 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Pressable
-          style={[styles.legalRow, { backgroundColor: colors.surfaceContainerHigh }]}
-          onPress={() => {
-            Alert.alert('Privacy', 'Policy viewer will be added in a future release.')
-          }}
-        >
-          <Text style={[styles.legalTitle, { color: colors.onSurface }]}>Privacy Policy</Text>
-          <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
-        </Pressable>
+        <Text style={[styles.sectionTitle, { color: colors.onSurface, marginTop: 16 }]}>Legal & Privacy</Text>
+        <View style={styles.settingsGrid}>
+          <Pressable
+            style={[styles.settingRow, { backgroundColor: colors.surfaceContainerHigh }]}
+            onPress={() => router.push('/privacy-policy')}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.settingTitle, { color: colors.onSurface }]}>Privacy Policy</Text>
+              <Text style={[styles.settingSub, { color: colors.onSurfaceVariant }]}>How we manage and protect your identification data.</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
+          </Pressable>
+
+          <Pressable
+            style={[styles.settingRow, { backgroundColor: colors.surfaceContainerHigh }]}
+            onPress={() => Alert.alert('Terms of Service', 'Standard LOQIT Service Agreement.')}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.settingTitle, { color: colors.onSurface }]}>Terms of Service</Text>
+              <Text style={[styles.settingSub, { color: colors.onSurfaceVariant }]}>Rules and guidelines for using the LOQIT network.</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
+          </Pressable>
+        </View>
+
+        <View style={{ marginTop: 24, alignItems: 'center' }}>
+          <Text style={{ color: colors.outline, fontSize: 11, fontFamily: FontFamily.bodyRegular }}>
+            LOQIT v1.0.0 (Secure Build)
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   )

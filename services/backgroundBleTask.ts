@@ -66,36 +66,45 @@ if (!TaskManager.isTaskDefined(BLE_SCAN_TASK)) {
 }
 
 export async function enableBackgroundBleScanTask() {
-  const status = await BackgroundFetch.getStatusAsync()
-  if (
-    status === BackgroundFetch.BackgroundFetchStatus.Restricted ||
-    status === BackgroundFetch.BackgroundFetchStatus.Denied
-  ) {
-    console.log('[LOQIT-BG] Background fetch restricted or denied')
+  try {
+    const status = await BackgroundFetch.getStatusAsync()
+    if (
+      status === BackgroundFetch.BackgroundFetchStatus.Restricted ||
+      status === BackgroundFetch.BackgroundFetchStatus.Denied
+    ) {
+      console.log('[LOQIT-BG] Background fetch restricted or denied')
+      return false
+    }
+
+    const registered = await TaskManager.getRegisteredTasksAsync()
+    const exists = registered.some((task) => task.taskName === BLE_SCAN_TASK)
+
+    if (!exists) {
+      await BackgroundFetch.registerTaskAsync(BLE_SCAN_TASK, {
+        minimumInterval: 5 * 60,
+        stopOnTerminate: false,
+        startOnBoot: true,
+      })
+      console.log('[LOQIT-BG] Background scan task registered')
+    }
+
+    return true
+  } catch (err) {
+    console.warn('[LOQIT-BG] Background fetch registration error (caught):', err)
     return false
   }
-
-  const registered = await TaskManager.getRegisteredTasksAsync()
-  const exists = registered.some((task) => task.taskName === BLE_SCAN_TASK)
-
-  if (!exists) {
-    await BackgroundFetch.registerTaskAsync(BLE_SCAN_TASK, {
-      minimumInterval: 5 * 60,
-      stopOnTerminate: false,
-      startOnBoot: true,
-    })
-    console.log('[LOQIT-BG] Background scan task registered')
-  }
-
-  return true
 }
 
 export async function disableBackgroundBleScanTask() {
-  const registered = await TaskManager.getRegisteredTasksAsync()
-  const exists = registered.some((task) => task.taskName === BLE_SCAN_TASK)
+  try {
+    const registered = await TaskManager.getRegisteredTasksAsync()
+    const exists = registered.some((task) => task.taskName === BLE_SCAN_TASK)
 
-  if (exists) {
-    await BackgroundFetch.unregisterTaskAsync(BLE_SCAN_TASK)
+    if (exists) {
+      await BackgroundFetch.unregisterTaskAsync(BLE_SCAN_TASK)
+    }
+  } catch (err) {
+    console.warn('[LOQIT-BG] Background fetch unregister error:', err)
   }
 }
 

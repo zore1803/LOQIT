@@ -1,70 +1,42 @@
-import { useEffect, useState } from 'react'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { useEffect } from 'react'
+import { ActivityIndicator, StyleSheet, View, Text } from 'react-native'
 import { useRouter } from 'expo-router'
-import * as Linking from 'expo-linking'
-import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../hooks/useAuth'
 import { Colors } from '../../constants/colors'
+import { FontFamily } from '../../constants/typography'
 
-/**
- * Empty route to handle the redirect URL from OAuth.
- * This prevents the "Unmatched Route" error in Expo Router.
- */
 export default function AuthCallback() {
   const router = useRouter()
-  const url = Linking.useURL()
-  const [hasProcessed, setHasProcessed] = useState(false)
+  const { session } = useAuth()
 
   useEffect(() => {
-    const handleUrl = async (currentUrl: string) => {
-      console.log('[AuthCallback] Processing URL:', currentUrl)
-      
-      const parsed = Linking.parse(currentUrl)
-      let accessToken = parsed.queryParams?.access_token as string
-      let refreshToken = parsed.queryParams?.refresh_token as string
-
-      if (!accessToken && currentUrl.includes('#')) {
-        const fragment = currentUrl.split('#')[1]
-        const params = new URLSearchParams(fragment)
-        accessToken = params.get('access_token') || ''
-        refreshToken = params.get('refresh_token') || ''
-      }
-
-      if (accessToken) {
-        console.log('[AuthCallback] Session found, setting session...')
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken || '',
-        })
-        if (error) {
-          console.error('[AuthCallback] setSession error:', error)
-          router.replace('/(auth)/onboarding')
-        } else {
-          router.replace('/(tabs)')
-        }
-      } else {
-        console.log('[AuthCallback] No tokens in URL.')
-        // If we land here without tokens, wait a tiny bit then fallback
-        setTimeout(() => router.replace('/'), 1000)
-      }
+    // If the session popped into existence (via AuthGate's global listener), 
+    // simply push the user to the dashboard.
+    if (session) {
+      setTimeout(() => {
+        router.replace('/(tabs)')
+      }, 500)
     }
-
-    if (url) {
-      handleUrl(url)
-    }
-  }, [url, router])
+  }, [session, router])
 
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color={Colors.primary} />
+      <Text style={styles.text}>Securing LOQIT Connection...</Text>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: Colors.background,
+    flex: 1, 
+    justifyContent: 'center', 
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: Colors.background,
   },
+  text: {
+    marginTop: 20,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.onSurface,
+  }
 })

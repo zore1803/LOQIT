@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -16,12 +16,12 @@ export default function SplashScreen() {
   // Navigation is handled globally by AuthGate in _layout.tsx
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.background }]}>
-      <MaterialIcons name="shield" size={76} color={Colors.primary} />
+    <View style={styles.container}>
+      <MaterialIcons name="shield" size={76} color={Colors.accent} />
 
       <MaskedView
         style={styles.gradientWrap}
-        maskElement={<Text style={[styles.logoText, { color: Colors.onSurface }]}>LOQIT</Text>}
+        maskElement={<Text style={styles.logoText}>LOQIT</Text>}
       >
         <LinearGradient
           colors={[Colors.primary, Colors.inversePrimary]}
@@ -32,20 +32,7 @@ export default function SplashScreen() {
         </LinearGradient>
       </MaskedView>
 
-      <Text style={[styles.subtitle, { color: Colors.onSurfaceVariant }]}>Secure Phone Ownership & Recovery</Text>
-      
-      <View style={{ marginTop: 40, alignItems: 'center' }}>
-        <ActivityIndicator size="small" color={Colors.primary} />
-        <Text style={{ 
-          marginTop: 10, 
-          fontSize: 10, 
-          color: Colors.outline, 
-          fontFamily: FontFamily.bodyRegular,
-          letterSpacing: 1
-        }}>
-          INITIALIZING...
-        </Text>
-      </View>
+      <Text style={styles.subtitle}>Secure Phone Ownership & Recovery</Text>
     </View>
   )
 }
@@ -53,6 +40,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0D0F14',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -72,6 +60,7 @@ const styles = StyleSheet.create({
   subtitle: {
     marginTop: 14,
     fontFamily: FontFamily.bodyRegular,
+    color: Colors.onSurfaceVariant,
     fontSize: 11.5,
     letterSpacing: 0.2,
     textAlign: 'center',

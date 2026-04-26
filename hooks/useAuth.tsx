@@ -72,7 +72,43 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     if (data) {
+      console.log(`[Auth] Profile loaded successfully. Role: ${data.role}`);
       setProfile(data as Profile)
+    } else {
+      // No profile row exists — this happens on first-time Google OAuth sign-in.
+      // Auto-create one from the user's Google metadata.
+      console.log('[Auth] No profile found. Attempting to create from user metadata...');
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const meta = user.user_metadata || {};
+          const newProfile = {
+            id: userId,
+            full_name: meta.full_name || meta.name || user.email?.split('@')[0] || 'User',
+            phone_number: meta.phone || null,
+            aadhaar_hash: null,
+            aadhaar_verified: false,
+            email_verified: true, // Google users are inherently email-verified
+            role: 'civilian' as const,
+            avatar_url: meta.avatar_url || meta.picture || null,
+          };
+          
+          const { data: created, error: createError } = await supabase
+            .from('profiles')
+            .upsert(newProfile, { onConflict: 'id' })
+            .select()
+            .single();
+            
+          if (createError) {
+            console.error('[Auth] Profile creation error:', createError);
+          } else if (created) {
+            console.log(`[Auth] Profile auto-created for Google user. Role: ${created.role}`);
+            setProfile(created as Profile);
+          }
+        }
+      } catch (e) {
+        console.error('[Auth] Profile auto-creation failed:', e);
+      }
     }
   }
 
@@ -104,11 +140,33 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     void bootstrap()
 
-    const { data } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    let lastSignInAt = 0;
+    const { data } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+      console.log(`[Auth] onAuthStateChange: event=${event}, hasSession=${!!nextSession}`)
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        lastSignInAt = Date.now();
+      }
+      
       if (nextSession) {
         setSession(nextSession)
         await loadProfile(nextSession.user.id)
       } else {
+        // CRITICAL: Block phantom SIGNED_OUT events that fire within 10s of a SIGNED_IN.
+        // This is a known gotrue-js race condition when setSession() is called externally
+        // while the SDK's internal token refresh cycle is mid-flight.
+        const timeSinceSignIn = Date.now() - lastSignInAt;
+        if (timeSinceSignIn < 10000 && lastSignInAt > 0) {
+          console.warn(`[Auth] Suppressing phantom SIGNED_OUT (${timeSinceSignIn}ms after sign-in). Recovering session...`);
+          // Re-fetch the actual session from storage to confirm
+          const { data: { session: recoveredSession } } = await supabase.auth.getSession();
+          if (recoveredSession) {
+            console.log('[Auth] Session recovered successfully! Ignoring false SIGNED_OUT.');
+            setSession(recoveredSession);
+            return;
+          }
+        }
+        console.log('[Auth] Genuine SIGNED_OUT. Clearing session.');
         setSession(null)
         setProfile(null)
       }
@@ -119,6 +177,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
       data.subscription.unsubscribe()
     }
   }, [])
+
+  // Safety net: If session exists but profile is null (e.g. after a component re-mount
+  // where the SDK recovered the session but onAuthStateChange didn't re-fire),
+  // actively load the profile.
+  useEffect(() => {
+    if (session?.user?.id && !profile && !loading) {
+      console.log('[Auth] Session exists but profile is null. Loading profile...');
+      loadProfile(session.user.id);
+    }
+  }, [session, profile, loading])
 
   // Independent safety timeout - guaranteed to fire even if bootstrap hangs
   useEffect(() => {

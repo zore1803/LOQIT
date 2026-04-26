@@ -3,7 +3,6 @@ import { withAndroidManifest, ConfigPlugin, AndroidConfig } from '@expo/config-p
 
 const googleMapsApiKey = 'AIzaSyBz6jmHel66wfzwB3zqjAmD73ADuv1T0Ek'
 
-// Custom plugin to inject foregroundServiceType for Android 14+ compatibility
 const withForegroundServiceType: ConfigPlugin = (config) => {
   return withAndroidManifest(config, async (modConfig) => {
     const manifest = modConfig.modResults
@@ -30,9 +29,10 @@ const config: ExpoConfig = {
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
 
+  owner: 'zore1804',
   extra: {
     eas: {
-      projectId: 'd631b2e5-564c-42cb-aa6d-0cd7dd71e09a',
+      projectId: '0cd8eda9-f06c-4bbf-a17d-cc4eb2a7cef0',
     },
     supabaseUrl: 'https://qnyukwxgrvrfwhrsaepj.supabase.co',
     supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFueXVrd3hncnZyZndocnNhZXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTkyNTUsImV4cCI6MjA5MTQ3NTI1NX0.82yHHZCoWOeui_zrltOqx-onq6s5G_j0emhhZobM4oE',
@@ -143,5 +143,4 @@ const config: ExpoConfig = {
   }
 }
 
-// Apply custom plugins
 export default withForegroundServiceType(config)
