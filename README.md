@@ -1,3 +1,13 @@
+---
+title: LOQIT
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # <div align="center">LOQIT: Next-Gen Phone Recovery Protocol</div>
 
 <div align="center">
