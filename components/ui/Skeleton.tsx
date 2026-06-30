@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { Animated, StyleSheet, ViewStyle } from 'react-native'
+import { Animated, StyleProp, StyleSheet, ViewStyle } from 'react-native'
 
 type SkeletonProps = {
   height?: number
   width?: number | `${number}%`
   borderRadius?: number
-  style?: ViewStyle
+  style?: StyleProp<ViewStyle>
 }
 
 export function Skeleton({

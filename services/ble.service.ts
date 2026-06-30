@@ -9,13 +9,29 @@ import {
 
 import { supabase } from '../lib/supabase'
 
-type FoundCallback = (beaconId: string, rssi: number, name?: string) => void
+export type LoqitDetectedDevice = {
+  id: string
+  owner_id: string
+  ble_device_uuid: string | null
+  ble_beacon_id?: string | null
+  make: string | null
+  model: string | null
+  status: string
+}
+
+type FoundCallback = (
+  beaconId: string,
+  rssi: number,
+  name?: string,
+  matchedDevice?: LoqitDetectedDevice | null
+) => void
 
 export const APP_SERVICE_UUID = '0000FD69-0000-1000-8000-00805F9B34FB'
 const BLE_DEVICE_UUID_STORAGE_KEY = 'loqit_ble_device_uuid'
 const BLE_BROADCASTING_MODE_STORAGE_KEY = 'loqit_ble_broadcasting_mode'
 const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 const VALID_SERVICE_UUID_RE = /^([0-9a-f]{4}|[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+const LOST_DEVICE_STATUSES = ['lost', 'stolen']
 
 // ─── UUID helpers ────────────────────────────────────────────────────────────
 
@@ -101,6 +117,17 @@ function extractUuidFromCompressedBase64(b64: string): string | null {
   } catch {
     return null
   }
+}
+
+function createRotatingLostToken(bleUuid: string, timeBucket: number) {
+  const rotationSecret = `${bleUuid}-${timeBucket}`
+  return rotationSecret
+    .split('')
+    .reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0)
+      return a & a
+    }, 0)
+    .toString(16)
 }
 
 // ─── BLEService ──────────────────────────────────────────────────────────────
@@ -194,13 +221,26 @@ class BLEService {
     if (!this.manager) await this.resetManager()
     
     return new Promise((resolve, reject) => {
+      let enableRequested = false
       const subscription = this.manager.onStateChange((state: string) => {
         console.log(`[BLE] ensureBluetoothPoweredOn — current state: ${state}`)
         if (state === 'PoweredOn') {
           subscription.remove()
           resolve()
+        } else if (state === 'PoweredOff') {
+          if (Platform.OS === 'android' && !enableRequested && typeof this.manager.enable === 'function') {
+            enableRequested = true
+            console.log('[BLE] Bluetooth is off. Requesting Android Bluetooth enable...')
+            this.manager.enable().catch((enableError: any) => {
+              subscription.remove()
+              reject(new Error(`[BLE] Bluetooth enable request failed: ${enableError?.message ?? enableError}`))
+            })
+            this.isScanningActive = false
+            return
+          }
+          subscription.remove()
+          reject(new Error('[BLE] Bluetooth is PoweredOff. Turn on Bluetooth and try again.'))
         } else if (
-          state === 'PoweredOff' ||
           state === 'Unauthorized' ||
           state === 'Unsupported'
         ) {
@@ -217,12 +257,12 @@ class BLEService {
     })
   }
 
-  async scanForAllDevices(onDeviceFound: (device: any) => void) {
+  async scanForAllDevices(onDeviceFound: (device: any) => void): Promise<boolean> {
     try {
       const hasPerms = await this.requestScanPermissions()
       if (!hasPerms) {
         console.warn('[BLE-SCAN] ❌ Permissions denied. Aborting scan.')
-        return
+        return false
       }
 
       await this.ensureBluetoothPoweredOn()
@@ -250,19 +290,22 @@ class BLEService {
           }
         }
       )
+      return true
     } catch (e) {
       console.warn('[BLE-SCAN] scanForAllDevices failed:', e)
+      this.isScanningActive = false
+      return false
     }
   }
 
   // ─── Scan for LOQIT devices ──────────────────────────────────────────────────
 
-  async scanForLOQITDevices(onDeviceFound: FoundCallback) {
+  async scanForLOQITDevices(onDeviceFound: FoundCallback): Promise<boolean> {
 
     // Hard lock — if a scan is already starting OR active, do nothing
     if (this.isScanStarting || this.isScanningActive) {
       console.warn('[BLE-SCAN] Scan already running — ignoring duplicate call.')
-      return
+      return false
     }
 
     this.isScanStarting = true
@@ -272,7 +315,7 @@ class BLEService {
       if (!hasPerms) {
         console.warn('[BLE-SCAN] ❌ Permissions denied. Aborting scan.')
         this.isScanStarting = false
-        return
+        return false
       }
 
       await this.ensureBluetoothPoweredOn()
@@ -342,10 +385,6 @@ class BLEService {
           // STRICT FILTER: Stop any random smartwatch/TV from pretending to be LOQIT
           if (!specificUuid) return
 
-          // LOG THE SUCCESSFUL MATCH
-          console.log(`[BLE-SCAN] 🎯 STRICT MATCH FOUND! UUID: ${specificUuid} | Name: ${deviceName}`);
-
-
           const id = dev.id || 'N/A'
           const rssi = dev.rssi || -100
           const now = Date.now()
@@ -355,20 +394,27 @@ class BLEService {
           if ((this.recentlySeen.get(dedupeKey) || 0) > now - 4500) return
           this.recentlySeen.set(dedupeKey, now)
 
+          const beaconId = specificUuid || dedupeKey
           console.log(
-            `[BLE-SCAN] ✅ LOQIT device found: "${deviceName}" | uuid=${specificUuid ?? 'none'} | id=${id} | rssi=${rssi}`
+            `[BLE-SCAN] LOQIT device found: "${deviceName}" | uuid=${beaconId} | id=${id} | rssi=${rssi}`
           )
 
-          // CRITICAL: report to police/owner database
-          this.reportDetectedLostDevice(specificUuid || dedupeKey, rssi, deviceName);
-
-          onDeviceFound(specificUuid || dedupeKey, rssi, deviceName)
+          void this.reportDetectedLostDevice(beaconId, rssi, deviceName).then((matchedDevice) => {
+            onDeviceFound(
+              matchedDevice?.ble_device_uuid || matchedDevice?.ble_beacon_id || matchedDevice?.id || beaconId,
+              rssi,
+              deviceName,
+              matchedDevice
+            )
+          })
         }
       )
+      return true
     } catch (e) {
       console.warn('[BLE-SCAN] Scan start failed:', e)
       this.isScanStarting = false
       this.isScanningActive = false
+      return false
     }
   }
 
@@ -380,6 +426,7 @@ class BLEService {
     const localName = `LQT-${b64Uuid}`
     try {
       await startAdvertising({ serviceUUIDs: [APP_SERVICE_UUID_NATIVE], localName })
+      await AsyncStorage.setItem(BLE_DEVICE_UUID_STORAGE_KEY, bleUuid)
       await this.setBroadcastingMode(true)
     } catch (e) {
       console.error('[BLE-BROADCAST] Start failed:', e)
@@ -395,8 +442,7 @@ class BLEService {
 
     const startBroadcastingWithCurrentToken = async () => {
       const timeBucket = Math.floor(Date.now() / 900000);
-      const rotationSecret = `${bleUuid}-${timeBucket}`;
-      const stealthToken = rotationSecret.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0).toString(16);
+      const stealthToken = createRotatingLostToken(bleUuid, timeBucket);
       const localName = `LQT-${stealthToken}`;
 
       console.log(`[BLE-BROADCAST] 🕵️ Stealth Beacon: ${localName}`)
@@ -404,6 +450,7 @@ class BLEService {
         await stopAdvertising();
         await startAdvertising({ serviceUUIDs: [APP_SERVICE_UUID_NATIVE], localName })
         this._isBroadcasting = true
+        await AsyncStorage.setItem(BLE_DEVICE_UUID_STORAGE_KEY, bleUuid)
         await this.setBroadcastingMode(true)
       } catch (e: any) {
         console.error(`[BLE-BROADCAST] Toggle Failed: ${e?.message ?? e}`)
@@ -462,14 +509,14 @@ class BLEService {
 
   // ─── Report detected lost device to Supabase ─────────────────────────────────
 
-  async reportDetectedLostDevice(id: string, rssi: number, name?: string) {
+  async reportDetectedLostDevice(id: string, rssi: number, name?: string): Promise<LoqitDetectedDevice | null> {
     const key = `report-${id}`
     const now = Date.now()
-    if ((this.recentlySeen.get(key) || 0) > now - 30000) return
+    if ((this.recentlySeen.get(key) || 0) > now - 30000) return null
     this.recentlySeen.set(key, now)
 
     try {
-      let data: any = null;
+      let data: LoqitDetectedDevice | null = null;
 
       // STEALTH MODE CHECK: If name starts with LQT-, it's a rotating token
       if (name && name.startsWith('LQT-')) {
@@ -478,14 +525,17 @@ class BLEService {
         
         // Fetch ALL lost devices to find the match (approx 15-min window)
         const { data: lostDevices } = await supabase.from('devices')
-            .select('id, owner_id, ble_device_uuid')
-            .eq('status', 'lost');
+            .select('id, owner_id, ble_device_uuid, ble_beacon_id, make, model, status')
+            .in('status', LOST_DEVICE_STATUSES)
+            .not('ble_device_uuid', 'is', null);
             
         if (lostDevices) {
-            for (const dev of lostDevices) {
-                const rotationSecret = `${dev.ble_device_uuid}-${timeBucket}`;
-                const checkToken = rotationSecret.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0).toString(16);
-                if (checkToken === token) {
+            for (const dev of lostDevices as LoqitDetectedDevice[]) {
+                if (!dev.ble_device_uuid) continue;
+                const matchedBucket = [timeBucket - 1, timeBucket, timeBucket + 1].some(
+                  (bucket) => createRotatingLostToken(dev.ble_device_uuid!, bucket) === token
+                );
+                if (matchedBucket) {
                     data = dev;
                     console.log(`[BLE-DECODE] 🔓 Stealth Identity Unmasked: ${dev.id}`);
                     break;
@@ -498,18 +548,18 @@ class BLEService {
       if (!data) {
         const { data: exactMatched } = await supabase
             .from('devices')
-            .select('id, owner_id, status')
+            .select('id, owner_id, ble_device_uuid, ble_beacon_id, make, model, status')
             .or(`ble_device_uuid.eq.${id},ble_beacon_id.eq.${id}`)
-            .eq('status', 'lost')
+            .in('status', LOST_DEVICE_STATUSES)
             .maybeSingle()
         data = exactMatched;
       }
 
-      if (!data && name && name.length > 3) {
+      if (!data && name && !name.startsWith('LQT-') && name.length > 3) {
         const { data: fuzzy } = await supabase
           .from('devices')
-          .select('id, owner_id, status')
-          .eq('status', 'lost')
+          .select('id, owner_id, ble_device_uuid, ble_beacon_id, make, model, status')
+          .in('status', LOST_DEVICE_STATUSES)
           .or(`make.ilike.%${name}%,model.ilike.%${name}%`)
           .maybeSingle()
         data = fuzzy
@@ -519,14 +569,16 @@ class BLEService {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           console.log('[BLE-LOG] ⚠️ No user logged in, skipping report.');
-          return;
+          return data;
         }
         const pos = await Location.getCurrentPositionAsync({}).catch(() => null)
         if (pos) {
           await supabase.from('beacon_logs').insert({
             device_id: data.id,
+            reporter_id: user.id,
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
+            accuracy_meters: pos.coords.accuracy,
             rssi,
             reported_at: new Date().toISOString()
           })
@@ -568,8 +620,10 @@ class BLEService {
           console.log(`[BLE-LOG] ✅ Reported lost device ${data.id} at (${pos.coords.latitude}, ${pos.coords.longitude})`)
         }
       }
+      return data
     } catch (e) {
       console.warn('[BLE-LOG] Report failed:', e)
+      return null
     }
   }
 

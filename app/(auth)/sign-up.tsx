@@ -24,7 +24,7 @@ function Field({ label, icon, value, onChangeText, placeholder, keyboardType = '
 }
 
 export default function SignUpScreen() {
-  const router = useRouter(); const { signIn, signUp } = useAuth(); const { colors } = useTheme()
+  const router = useRouter(); const { signUp } = useAuth(); const { colors } = useTheme()
   const [fullName, setFullName] = useState(''); const [phoneNumber, setPhoneNumber] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [aadhaarEnabled, setAadhaarEnabled] = useState(false); const [aadhaar, setAadhaar] = useState(''); const [showPassword, setShowPassword] = useState(false); const [submitting, setSubmitting] = useState(false); const [errorMessage, setErrorMessage] = useState('')
   const phoneRef = useRef<TextInput | null>(null); const emailRef = useRef<TextInput | null>(null); const passwordRef = useRef<TextInput | null>(null); const aadhaarRef = useRef<TextInput | null>(null)
 
@@ -48,7 +48,8 @@ export default function SignUpScreen() {
     setSubmitting(true); setErrorMessage('')
     const { error } = await signUp({ email: email.trim(), password, fullName: fullName.trim(), phoneNumber: `+91${phoneClean}` })
     if (error) { setSubmitting(false); setErrorMessage(error.message); return }
-    router.replace({ pathname: '/(auth)/otp-verify', params: { email: email.trim() } })
+    setSubmitting(false)
+    router.replace('/(tabs)')
   }
 
   return (

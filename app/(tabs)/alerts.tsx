@@ -37,7 +37,7 @@ function SwipeableNotificationCard({ item, onPress, onDismiss, colors }: any) {
   }
 
   return (
-    <Swipeable ref={swipeableRef} renderRightActions={renderRightActions} onSwipeableOpen={() => setTimeout(() => onDismiss(item.id), 200)} rightThreshold={100}摩擦={2} overshootRight={false}>
+    <Swipeable ref={swipeableRef} renderRightActions={renderRightActions} onSwipeableOpen={() => setTimeout(() => onDismiss(item.id), 200)} rightThreshold={100} friction={2} overshootRight={false}>
       <Pressable style={[styles.card, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }, !item.is_read && { backgroundColor: colors.surfaceContainerHigh }]} onPress={onPress}>
         {!item.is_read && <View style={[styles.unreadBar, { backgroundColor: visuals.tint }]} />}
         <View style={[styles.iconWrap, { backgroundColor: `${visuals.tint}1A` }]}><MaterialIcons name={visuals.icon} size={18} color={visuals.tint} /></View>

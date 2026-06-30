@@ -128,6 +128,7 @@ function AppRoutes() {
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/" element={user ? <Navigate to={profile?.role === 'police' || profile?.role === 'admin' ? '/police' : '/dashboard'} replace /> : <LandingPage />} />
       <Route path="/login" element={user ? <Navigate to={profile?.role === 'police' || profile?.role === 'admin' ? '/police' : '/dashboard'} replace /> : <LoginPage />} />
+      <Route path="/admin-auth" element={user ? <Navigate to={profile?.role === 'police' || profile?.role === 'admin' ? '/police' : '/dashboard'} replace /> : <LoginPage initialMode="police" />} />
 
       {/* Civilian routes */}
       <Route path="/dashboard" element={<PrivateRoute><AppLayout><HomePage /></AppLayout></PrivateRoute>} />

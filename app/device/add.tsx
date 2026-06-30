@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { GradientButton } from '../../components/ui/GradientButton'
 import { Colors } from '../../constants/colors'
 import { FontFamily } from '../../constants/typography'
-import { isValidIMEI, registerDevice } from '../../hooks/useDevices'
+import { registerDevice } from '../../hooks/useDevices'
 
 const MAKE_OPTIONS = ['Samsung', 'Apple', 'OnePlus', 'Xiaomi', 'Other'] as const
 const indiaStatesByCode = require('india-state-list/states.json') as Record<string, string>

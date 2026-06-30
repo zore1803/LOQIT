@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -14,6 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Colors } from '../../constants/colors';
 import { FontFamily } from '../../constants/typography';
 import { GradientButton } from '../ui/GradientButton';
+import { StructuredLoader } from '../ui/StructuredLoader';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -35,16 +35,22 @@ export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGa
       setLoading(false);
       return;
     }
-    if (!handsetIdentifier) return;
+    if (!handsetIdentifier) {
+      setLoading(false);
+      return;
+    }
 
     async function checkPairing() {
       try {
+        const userId = session?.user?.id
+        if (!userId) return
         setLoading(true);
         // Check if this handset is already linked
         const { data: linkedDevice, error } = await supabase
           .from('devices')
           .select('id')
           .eq('installation_id', handsetIdentifier)
+          .eq('owner_id', userId)
           .maybeSingle();
 
         if (linkedDevice) {
@@ -52,13 +58,11 @@ export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGa
           await AsyncStorage.setItem('loqit_my_active_device_id', linkedDevice.id);
           onPaired(linkedDevice.id);
         } else {
-          if (!session?.user?.id) return;
-
           // If not linked, see if they have devices to link
           const { data: devices } = await supabase
             .from('devices')
             .select('*')
-            .eq('owner_id', session.user.id);
+            .eq('owner_id', userId);
           
           if (devices && devices.length > 0) {
             setUserDevices(devices);
@@ -121,9 +125,11 @@ export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGa
 
   if (loading && !showModal && !pairedDeviceId) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
+      <StructuredLoader
+        colors={Colors}
+        variant="pairing"
+        message="Preparing device pairing..."
+      />
     );
   }
 
@@ -205,12 +211,6 @@ export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGa
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

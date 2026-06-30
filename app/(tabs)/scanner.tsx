@@ -22,7 +22,7 @@ import { Colors } from '../../constants/colors'
 import { FontFamily } from '../../constants/typography'
 import { useTheme } from '../../hooks/useTheme'
 import { useAuth } from '../../hooks/useAuth'
-import { bleService } from '../../services/ble.service'
+import { bleService, LoqitDetectedDevice } from '../../services/ble.service'
 import { supabase } from '../../lib/supabase'
 import { GradientButton } from '../../components/ui/GradientButton'
 import { Toast } from '../../components/ui/Toast'
@@ -38,6 +38,8 @@ type DetectedDevice = {
   make: string | null
   model: string | null
   status: string
+  registryLabel: string
+  isMine: boolean
   seenAt: string
 }
 
@@ -88,7 +90,9 @@ export default function ScannerScreen() {
     return () => anims.forEach(a => a?.stop())
   }, [isScanning, ringOne, ringTwo, ringThree, startPulse])
 
-  const findMatch = useCallback((beaconId: string, name?: string) => {
+  const findMatch = useCallback((beaconId: string, name?: string, matchedDevice?: LoqitDetectedDevice | null) => {
+    if (matchedDevice?.id) return matchedDevice
+
     const id = beaconId.toLowerCase()
     const cleanName = name?.toLowerCase() || ''
     
@@ -110,12 +114,12 @@ export default function ScannerScreen() {
       }
       return false
     })
-  }, [user])
+  }, [myDeviceId])
 
   // fromGps=true means it came from GPS proximity (not a real BLE signal) — never triggers the alert modal
-  const upsertDevice = useCallback(async (beaconId: string, rssi: number, name?: string, fromGps = false) => {
+  const upsertDevice = useCallback(async (beaconId: string, rssi: number, name?: string, fromGps = false, matchedDevice?: LoqitDetectedDevice | null) => {
     // 1. Local Cache Match (High Speed)
-    let matched = findMatch(beaconId, name)
+    let matched = findMatch(beaconId, name, matchedDevice)
     
     // 2. Server Fallback (Deep Scan - if not in local registry or registry didn't load)
     if (!matched) {
@@ -132,6 +136,15 @@ export default function ScannerScreen() {
 
     if (!matched) return
 
+    const isMine = matched.owner_id === user?.id
+    const registryLabel = isMine
+      ? 'My registered LOQIT device'
+      : matched.status === 'stolen'
+        ? 'Stolen LOQIT device'
+        : matched.status === 'lost'
+          ? 'Lost LOQIT device'
+          : 'Registered LOQIT device'
+
     const next: DetectedDevice = {
       beaconId: matched.ble_beacon_id || beaconId,
       rssi,
@@ -141,6 +154,8 @@ export default function ScannerScreen() {
       make: matched.make,
       model: matched.model,
       status: matched.status,
+      registryLabel,
+      isMine,
       seenAt: new Date().toISOString(),
     }
 
@@ -153,12 +168,16 @@ export default function ScannerScreen() {
     if (!fromGps && (next.status === 'lost' || next.status === 'stolen')) {
       setLostAlertDevice(next)
     }
-  }, [findMatch])
+  }, [findMatch, user?.id])
 
   // Keep the lost-device registry refreshed (runs on mount, not tied to scan state)
   useEffect(() => {
     const fetchRegistry = async () => {
-      const { data } = await supabase.from('devices').select('*').in('status', ['lost', 'stolen'])
+      const ownerId = user?.id || '00000000-0000-0000-0000-000000000000'
+      const { data } = await supabase
+        .from('devices')
+        .select('*')
+        .or(`status.in.(lost,stolen),owner_id.eq.${ownerId}`)
       if (data) {
         lostRepo.current = data
         console.log(`[Scanner] Lost Registry updated: ${data.length} devices`)
@@ -172,7 +191,7 @@ export default function ScannerScreen() {
       clearInterval(registryInterval)
       bleService.stopScan()
     }
-  }, [])
+  }, [user?.id])
 
   // GPS proximity check — only runs while the user has actively started scanning
   // Uses 50m radius; does NOT trigger the "device found" alert modal (fromGps=true)
@@ -246,36 +265,46 @@ export default function ScannerScreen() {
       return
     }
 
-    if (showAll) {
-      bleService.scanForAllDevices((dev) => {
+    await bleService.stopScan()
+    const started = showAll
+      ? await bleService.scanForAllDevices((dev) => {
         setAllDevices((curr) => {
           const other = curr.filter((d) => d.id !== dev.id)
           return [{ ...dev, seenAt: Date.now() }, ...other].slice(0, 20)
         })
       })
-    } else {
-      bleService.scanForLOQITDevices((b, r, n) => {
-        upsertDevice(b, r, n)
+      : await bleService.scanForLOQITDevices((b, r, n, matched) => {
+        upsertDevice(b, r, n, false, matched)
       })
+
+    if (!started) {
+      setToast({ message: 'Turn on Bluetooth, then start scanning again.', type: 'error' })
+      setIsScanning(false)
+      return
     }
     setIsScanning(true)
   }
 
   useEffect(() => {
     if (isScanning) {
-      bleService.stopScan()
-      if (showAll) {
-        bleService.scanForAllDevices((dev) => {
-          setAllDevices((curr) => {
-            const other = curr.filter((d) => d.id !== dev.id)
-            return [{ ...dev, seenAt: Date.now() }, ...other].slice(0, 20)
+      const restartScan = async () => {
+        await bleService.stopScan()
+        const started = showAll
+          ? await bleService.scanForAllDevices((dev) => {
+            setAllDevices((curr) => {
+              const other = curr.filter((d) => d.id !== dev.id)
+              return [{ ...dev, seenAt: Date.now() }, ...other].slice(0, 20)
+            })
           })
-        })
-      } else {
-        bleService.scanForLOQITDevices((b, r, n) => {
-          upsertDevice(b, r, n)
-        })
+          : await bleService.scanForLOQITDevices((b, r, n, matched) => {
+            upsertDevice(b, r, n, false, matched)
+          })
+        if (!started) {
+          setToast({ message: 'Turn on Bluetooth, then start scanning again.', type: 'error' })
+          setIsScanning(false)
+        }
       }
+      void restartScan()
     }
   }, [showAll, upsertDevice])
 
@@ -299,7 +328,7 @@ export default function ScannerScreen() {
               <MaterialIcons name={isScanning ? 'bluetooth-searching' : 'bluetooth'} size={40} color={colors.primary} />
             </View>
           </TouchableOpacity>
-          <Text style={[styles.protocolText, { color: colors.outline }]}>Registry: {lostRepo.current.length} Lost Devices</Text>
+          <Text style={[styles.protocolText, { color: colors.outline }]}>Registry: {lostRepo.current.length} LOQIT Devices</Text>
           <Text style={[styles.scanStatus, { color: colors.onSurface }]}>{isScanning ? 'Scanner active' : 'Scanner paused'}</Text>
           <View style={{ marginTop: 8, width: 220 }}>
             <GradientButton title={isScanning ? "Stop Scanning" : "Start Scanning"} onPress={toggleScan} />
@@ -327,8 +356,8 @@ export default function ScannerScreen() {
         )) : detectedDevices.map((item) => (
           <View key={item.beaconId} style={[styles.deviceCard, { backgroundColor: colors.surfaceContainerLow }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={[styles.deviceIconWrap, { backgroundColor: `${colors.primary}24` }]}><MaterialIcons name="bluetooth-searching" size={18} color={colors.primary} /></View>
-              <View style={{ flex: 1 }}><Text style={[styles.deviceNameStyle, { color: colors.onSurface }]}>{item.make ? `${item.make} ${item.model}` : 'LOQIT Device'}</Text><Text style={[styles.beaconIdText, { color: colors.outline }]}>{item.make ? `Beacon: ${item.beaconId}` : `ID: ${item.beaconId.slice(0, 16)}…`}</Text></View>
+              <View style={[styles.deviceIconWrap, { backgroundColor: `${colors.primary}24` }]}><MaterialIcons name={item.isMine ? 'verified' : 'bluetooth-searching'} size={18} color={colors.primary} /></View>
+              <View style={{ flex: 1 }}><Text style={[styles.deviceNameStyle, { color: colors.onSurface }]}>{item.make ? `${item.make} ${item.model}` : 'LOQIT Device'}</Text><Text style={[styles.registryText, { color: item.status === 'lost' || item.status === 'stolen' ? colors.error : colors.secondary }]}>{item.registryLabel}</Text><Text style={[styles.beaconIdText, { color: colors.outline }]}>{item.make ? `Beacon: ${item.beaconId}` : `ID: ${item.beaconId.slice(0, 16)}...`}</Text></View>
               <View style={{ alignItems: 'flex-end', gap: 2 }}>
                 <View style={[styles.distanceBadge, { backgroundColor: item.rssi > -60 ? `${colors.secondary}20` : `${colors.outlineVariant}20` }]}>
                   <Text style={[styles.distanceText, { color: item.rssi > -60 ? colors.secondary : colors.onSurfaceVariant }]}>{item.distanceMeters ? `~${item.distanceMeters.toFixed(1)}m` : '---'}</Text>
@@ -377,6 +406,7 @@ const styles = StyleSheet.create({
   deviceCard: { borderRadius: 12, padding: 12, gap: 10 },
   deviceIconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   deviceNameStyle: { fontFamily: FontFamily.bodyMedium, fontSize: 14 },
+  registryText: { fontFamily: FontFamily.bodyMedium, fontSize: 11, marginTop: 2 },
   beaconIdText: { fontFamily: FontFamily.monoMedium, fontSize: 10, marginTop: 1 },
   signalBar: { width: 3, borderRadius: 2 },
   rssiText: { fontFamily: FontFamily.monoMedium, fontSize: 10 },

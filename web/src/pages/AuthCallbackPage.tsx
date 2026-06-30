@@ -11,54 +11,80 @@ export function AuthCallbackPage() {
     if (handled.current) return
     handled.current = true
 
-    const handleCallback = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession()
+    let done = false
+    let subscription: { unsubscribe: () => void } | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
 
-      if (error) {
-        console.error('Auth callback error:', error)
-        navigate('/login?error=auth_failed', { replace: true })
-        return
-      }
+    const routeForUser = async (userId: string) => {
+      if (done) return
+      done = true
+      if (timer) clearTimeout(timer)
+      if (subscription) subscription.unsubscribe()
 
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single()
 
-        if (profile?.role === 'police' || profile?.role === 'admin') {
-          navigate('/police', { replace: true })
-        } else {
-          navigate('/dashboard', { replace: true })
-        }
+      if (profile?.role === 'police' || profile?.role === 'admin') {
+        navigate('/police', { replace: true })
       } else {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
-          if (event === 'SIGNED_IN' && s?.user) {
-            subscription.unsubscribe()
-
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', s.user.id)
-              .single()
-
-            if (profile?.role === 'police' || profile?.role === 'admin') {
-              navigate('/police', { replace: true })
-            } else {
-              navigate('/dashboard', { replace: true })
-            }
-          }
-        })
-
-        setTimeout(() => {
-          subscription.unsubscribe()
-          navigate('/login', { replace: true })
-        }, 10000)
+        navigate('/dashboard', { replace: true })
       }
     }
 
+    const handleCallback = async () => {
+      // 1. Subscribe FIRST so a SIGNED_IN event fired during the PKCE exchange
+      //    can never slip through the race window unobserved.
+      const sub = supabase.auth.onAuthStateChange((event, s) => {
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && s?.user) {
+          routeForUser(s.user.id)
+        }
+      })
+      subscription = sub.data.subscription
+
+      // 2. If the URL carries a PKCE ?code=, exchange it explicitly. This is
+      //    idempotent with detectSessionInUrl and resolves the session reliably.
+      try {
+        if (window.location.search.includes('code=')) {
+          await supabase.auth.exchangeCodeForSession(window.location.href)
+        }
+      } catch (err) {
+        console.warn('Auth callback: code exchange failed (may already be handled):', err)
+      }
+
+      // 3. Catch the already-established-session case.
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) {
+        console.error('Auth callback error:', error)
+        if (!done) {
+          done = true
+          if (subscription) subscription.unsubscribe()
+          navigate('/login?error=auth_failed', { replace: true })
+        }
+        return
+      }
+      if (session?.user) {
+        routeForUser(session.user.id)
+        return
+      }
+
+      // 4. Fallback: if nothing resolved, return to login after a short wait.
+      timer = setTimeout(() => {
+        if (done) return
+        done = true
+        if (subscription) subscription.unsubscribe()
+        navigate('/login?error=timeout', { replace: true })
+      }, 8000)
+    }
+
     handleCallback()
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      if (subscription) subscription.unsubscribe()
+    }
   }, [navigate])
 
   return (

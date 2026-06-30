@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { getAuthRedirectUrl } from '../lib/authRedirect'
 
 type Profile = {
   id: string
@@ -82,14 +83,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) {
           setSession(initialSession)
           setUser(initialSession?.user ?? null)
-          if (initialSession?.user) {
-            const profileData = await fetchProfile(initialSession.user.id)
+        }
+        // Unblock the UI as soon as we know the session; fetch the profile in the
+        // background so a slow/hanging profile query can never trap us on the spinner.
+        if (mounted) setLoading(false)
+        if (mounted && initialSession?.user) {
+          fetchProfile(initialSession.user.id).then((profileData) => {
             if (mounted) setProfile(profileData)
-          }
+          })
         }
       } catch (error) {
         console.error('AuthProvider: Error getting initial session', error)
-      } finally {
         if (mounted) setLoading(false)
       }
 
@@ -101,8 +105,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(currentSession)
             setUser(currentSession?.user ?? null)
             if (currentSession?.user) {
-              const profileData = await fetchProfile(currentSession.user.id)
-              if (mounted) setProfile(profileData)
+              fetchProfile(currentSession.user.id).then((profileData) => {
+                if (mounted) setProfile(profileData)
+              })
             } else {
               setProfile(null)
             }
@@ -126,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: getAuthRedirectUrl('/auth/callback'),
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     })
@@ -149,25 +154,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isPhone(id) ? { phone: id, password } : { email: id, password }
     )
 
-    // New: Proactively trigger OTP for unverified email users
-    if (!error && data.user && !isPhone(id)) {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('email_verified')
-        .eq('id', data.user.id)
-        .maybeSingle()
-      
-      if (!profileData || !profileData.email_verified) {
-        console.log('[Web Auth] Proactively triggering OTP for unverified user...')
-        const n8nUrl = import.meta.env.VITE_N8N_SEND_VERIFICATION_URL || 'https://zore1803.app.n8n.cloud/webhook/send-verification'
-        fetch(n8nUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: id }),
-        }).catch(e => console.error('[Web Auth] Initial OTP trigger failed:', e))
-      }
-    }
-
     return { error: error as Error | null }
   }
 
@@ -182,26 +168,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       return { error: error as Error | null }
     } else {
-      // 1. Store details temporarily for n8n flow
       const sanitizedEmail = id.toLowerCase().trim()
-      setTempUser({ email: sanitizedEmail, password, fullName })
+      const { data, error } = await supabase.auth.signUp({
+        email: sanitizedEmail,
+        password,
+        options: { data: { full_name: fullName } },
+      })
 
-      // 2. Trigger n8n verification
-      try {
-        const n8nUrl = import.meta.env.VITE_N8N_SEND_VERIFICATION_URL || 'https://zore1803.app.n8n.cloud/webhook/send-verification'
-        const response = await fetch(n8nUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: sanitizedEmail }),
-        })
-        
-        if (!response.ok) throw new Error('Failed to send verification email.')
-        
-        return { error: null }
-      } catch (err) {
-        console.error('[Web Auth] Failed to trigger n8n verification:', err)
-        return { error: err as Error | null }
+      if (error && !error.message.toLowerCase().includes('already registered')) {
+        return { error: error as Error | null }
       }
+
+      const userId = data.user?.id
+      if (userId) {
+        await supabase.from('profiles').update({ email_verified: true }).eq('id', userId)
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: sanitizedEmail,
+        password,
+      })
+
+      return { error: signInError as Error | null }
     }
   }
 
@@ -213,33 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.verifyOtp({ phone: id, token, type: 'sms' })
       return { error: error as Error | null }
     } else {
-      // 1. Call n8n verify webhook
       try {
-        const n8nUrl = import.meta.env.VITE_N8N_VERIFY_OTP_URL || 'https://zore1803.app.n8n.cloud/webhook/verify-otp'
-        const response = await fetch(n8nUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: normalizedEmail, otp: token }),
-        })
-        
-        const text = await response.text()
-        let result: any = {}
-        try {
-          result = text ? JSON.parse(text) : {}
-        } catch (e) {
-          console.warn('[Web Auth] verifyOtp non-JSON:', text)
-          if (text && text.toLowerCase().includes('verified')) {
-            result = { status: 'verified' }
-          } else {
-            throw new Error('Verification server returned an invalid response.')
-          }
-        }
-
-        if (!response.ok || (result.status !== 'verified' && result.code !== 'verified')) {
-          return { error: new Error(result.message || result.error || 'Invalid or expired OTP') }
-        }
-        
-        // 2. n8n Verified! Finalize Logged-in/SignUp
         let userId = user?.id;
 
         // If not logged in yet (new registration), perform the signUp now
@@ -272,7 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: null }
       } catch (err) {
         console.error('[Web Auth] verifyOtp error:', err)
-        return { error: new Error('Verification service error.') }
+        return { error: new Error('Verification error.') }
       }
     }
   }
@@ -283,25 +245,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.resend({ type: 'sms', phone: id })
       return { error: error as Error | null }
     } else {
-      try {
-        const n8nUrl = import.meta.env.VITE_N8N_SEND_VERIFICATION_URL || 'https://zore1803.app.n8n.cloud/webhook/send-verification'
-        await fetch(n8nUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: id }),
-        })
-        return { error: null }
-      } catch (err) {
-        return { error: new Error('Failed to resend code.') }
-      }
+      return { error: null }
     }
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    // Clear local state FIRST so the UI updates immediately, even if the network
+    // revoke below fails. Previously a thrown signOut() skipped these and left the
+    // user "logged in" until a manual refresh.
     setUser(null)
     setProfile(null)
     setSession(null)
+    try {
+      // scope: 'local' clears the stored session without depending on a successful
+      // server round-trip (which can throw on expired/missing sessions or flaky net).
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch (err) {
+      console.warn('AuthProvider: signOut error (ignored, local state already cleared):', err)
+    }
   }
 
   return (

@@ -36,8 +36,6 @@ const config: ExpoConfig = {
     },
     supabaseUrl: 'https://qnyukwxgrvrfwhrsaepj.supabase.co',
     supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFueXVrd3hncnZyZndocnNhZXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTkyNTUsImV4cCI6MjA5MTQ3NTI1NX0.82yHHZCoWOeui_zrltOqx-onq6s5G_j0emhhZobM4oE',
-    n8nSendUrl: 'https://zore1803.app.n8n.cloud/webhook/send-verification',
-    n8nVerifyUrl: 'https://zore1803.app.n8n.cloud/webhook/verify-otp',
   },
 
   splash: {
@@ -98,6 +96,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-font',
     '@react-native-community/datetimepicker',
+    'expo-secure-store',
     'expo-background-fetch',
     [
       'expo-location',

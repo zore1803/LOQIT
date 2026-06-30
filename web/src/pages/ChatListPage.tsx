@@ -82,7 +82,7 @@ export function ChatListPage() {
 
       const roomItems: RoomItem[] = []
 
-      for (const room of (ownerRooms || []) as RoomRecord[]) {
+      for (const room of (ownerRooms || []) as unknown as RoomRecord[]) {
         const device = room.devices
         
         // Fetch last message

@@ -17,6 +17,7 @@ import { AadhaarVerifyModal } from '../../components/loqit/AadhaarVerifyModal'
 import { DeviceCard } from '../../components/loqit/DeviceCard'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { StructuredLoader } from '../../components/ui/StructuredLoader'
 import { FontFamily } from '../../constants/typography'
 import { useAuth } from '../../hooks/useAuth'
 import { useDevices } from '../../hooks/useDevices'
@@ -52,9 +53,9 @@ function getRelativeTime(date: string) {
 
 export default function HomeScreen() {
   const router = useRouter()
-  const { profile, user, signOut } = useAuth()
+  const { profile, user, signOut, loading: authLoading } = useAuth()
   const { colors } = useTheme()
-  const { devices, loading: loadingDevices, error: devicesError, refetch } = useDevices()
+  const { devices, loading: loadingDevices, error: devicesError } = useDevices()
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loadingNotifications, setLoadingNotifications] = useState(false)
@@ -128,6 +129,16 @@ export default function HomeScreen() {
   const handleSignOut = async () => {
     await signOut()
     router.replace('/(auth)/onboarding')
+  }
+
+  if (authLoading || (user && !profile)) {
+    return (
+      <StructuredLoader
+        colors={colors}
+        variant="dashboard"
+        message="Loading your dashboard..."
+      />
+    )
   }
 
   return (
@@ -222,7 +233,6 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <Pressable style={styles.refreshBtn} onPress={() => { refetch(); fetchNotifications() }}><MaterialIcons name="refresh" size={16} color={colors.primary} /><Text style={[styles.refreshText, { color: colors.primary }]}>Refresh Data</Text></Pressable>
       </ScrollView>
 
       <Modal visible={showReportPicker} transparent animationType="slide">
@@ -292,8 +302,6 @@ const styles = StyleSheet.create({
   activityTitle: { fontFamily: FontFamily.bodyMedium, fontSize: 14, marginBottom: 2 },
   activityBody: { fontFamily: FontFamily.bodyRegular, fontSize: 12 },
   activityTime: { fontFamily: FontFamily.bodyRegular, fontSize: 11 },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
-  refreshText: { fontFamily: FontFamily.bodyMedium, fontSize: 13 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: { padding: 24, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },

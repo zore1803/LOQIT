@@ -29,7 +29,6 @@ export default function SignInScreen() {
     setSubmitting(true); setErrorMessage('')
     const { error } = await signIn(email.trim(), password); setSubmitting(false)
     if (error) { setErrorMessage(error.message); return }
-    router.replace('/(tabs)')
   }
 
   return (
@@ -69,7 +68,7 @@ export default function SignInScreen() {
             
             <View style={styles.divider}><View style={[styles.dividerLine, { backgroundColor: colors.outlineVariant }]} /><Text style={{ color: colors.outline, fontSize: 10 }}>OR</Text><View style={[styles.dividerLine, { backgroundColor: colors.outlineVariant }]} /></View>
             
-            <Pressable style={[styles.googleBtn, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]} onPress={() => signInWithGoogle().then(() => router.replace('/(tabs)'))}>
+            <Pressable style={[styles.googleBtn, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]} onPress={() => signInWithGoogle()}>
               <MaterialIcons name="g-mobiledata" size={26} color={colors.onSurface} />
               <Text style={[styles.googleText, { color: colors.onSurface }]}>Google Account</Text>
             </Pressable>

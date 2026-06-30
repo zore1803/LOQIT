@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../lib/supabase'
 import { FontFamily } from '../../constants/typography'
@@ -31,8 +31,8 @@ function simpleHash(str: string): string {
 export async function setDevicePasskey(pin: string, hint: string, deviceId: string): Promise<void> {
   const salted = pin + deviceId
   const hashed = simpleHash(salted)
-  await AsyncStorage.setItem(PASSKEY_STORAGE_KEY, hashed)
-  await AsyncStorage.setItem(PASSKEY_HINT_KEY, hint)
+  await SecureStore.setItemAsync(PASSKEY_STORAGE_KEY, hashed)
+  await SecureStore.setItemAsync(PASSKEY_HINT_KEY, hint)
   await supabase
     .from('protection_settings')
     .upsert({ device_id: deviceId, loqit_passkey_hash: hashed, passkey_hint: hint }, { onConflict: 'device_id' })
@@ -41,7 +41,7 @@ export async function setDevicePasskey(pin: string, hint: string, deviceId: stri
 export async function verifyDevicePasskey(pin: string, deviceId: string): Promise<boolean> {
   const salted = pin + deviceId
   const hashed = simpleHash(salted)
-  const stored = await AsyncStorage.getItem(PASSKEY_STORAGE_KEY)
+  const stored = await SecureStore.getItemAsync(PASSKEY_STORAGE_KEY)
   if (stored) return stored === hashed
   const { data } = await supabase
     .from('protection_settings')
@@ -52,7 +52,7 @@ export async function verifyDevicePasskey(pin: string, deviceId: string): Promis
 }
 
 export async function hasPasskeySet(deviceId: string): Promise<boolean> {
-  const local = await AsyncStorage.getItem(PASSKEY_STORAGE_KEY)
+  const local = await SecureStore.getItemAsync(PASSKEY_STORAGE_KEY)
   if (local) return true
   const { data } = await supabase
     .from('protection_settings')
@@ -80,7 +80,7 @@ export function LostDeviceLock({ deviceId, lockMessage, onUnlocked }: Props) {
   const shakeAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    AsyncStorage.getItem(PASSKEY_HINT_KEY).then((h) => {
+    SecureStore.getItemAsync(PASSKEY_HINT_KEY).then((h) => {
       if (h) setHint(h)
     })
   }, [])

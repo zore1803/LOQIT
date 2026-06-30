@@ -5,6 +5,7 @@ import { Colors } from '../lib/colors'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { getAuthRedirectUrl } from '../lib/authRedirect'
 
 /* ── Animated mesh background ───────────────────────── */
 function MeshBackground() {
@@ -100,10 +101,10 @@ function StatPill({ icon, label, value, delay }: { icon: string; label: string; 
 }
 
 /* ── Main LoginPage ─────────────────────────────────── */
-export function LoginPage() {
+export function LoginPage({ initialMode = 'civilian' }: { initialMode?: 'civilian' | 'police' }) {
   const navigate = useNavigate()
   const { signIn, signUp, verifyOtp, resendOtp, signInWithGoogle } = useAuth()
-  const [mode, setMode] = useState<'civilian' | 'police'>('civilian')
+  const [mode, setMode] = useState<'civilian' | 'police'>(initialMode)
   const [isSignUp, setIsSignUp] = useState(false)
   const [showOtpVerify, setShowOtpVerify] = useState(false)
   const [otpToken, setOtpToken] = useState('')
@@ -230,7 +231,7 @@ export function LoginPage() {
     setLoading(true)
     setMessage(null)
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+      redirectTo: getAuthRedirectUrl('/auth/reset-password'),
     })
     if (error) {
       setMessage({ type: 'error', text: error.message })

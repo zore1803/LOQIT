@@ -40,7 +40,7 @@ function MenuItem({ icon, label, onPress, tint, showArrow = true, colors }: any)
 
 export default function ProfileScreen() {
   const router = useRouter(); const { profile, signOut, user, loading } = useAuth(); const { colors } = useTheme(); const { devices } = useDevices()
-  const [reportsCount, setReportsCount] = useState(0); const [loadingReports, setLoadingReports] = useState(false); const [aadhaarModalVisible, setAadhaarModalVisible] = useState(false)
+  const [reportsCount, setReportsCount] = useState(0); const [loadingReports, setLoadingReports] = useState(false); const [aadhaarModalVisible, setAadhaarModalVisible] = useState(false); const [signingOut, setSigningOut] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -61,6 +61,17 @@ export default function ProfileScreen() {
     { label: 'Reports', value: reportsCount, color: colors.tertiary, loading: loadingReports },
     { label: 'Days Active', value: daysSince(profile?.created_at), color: colors.secondary, loading: false }
   ]
+
+  const handleSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    try {
+      await signOut()
+      router.replace('/(auth)/onboarding')
+    } finally {
+      setSigningOut(false)
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -103,8 +114,8 @@ export default function ProfileScreen() {
         </View>
 
         <View style={[styles.menuGroup, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
-          <Pressable style={styles.signOutBtn} onPress={() => signOut().then(() => router.replace('/(auth)/onboarding'))}>
-            <LinearGradient colors={[colors.error, '#c44444']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.signOutGradient}><MaterialIcons name="logout" size={20} color="#fff" /><Text style={styles.signOutText}>Sign Out</Text></LinearGradient>
+          <Pressable style={styles.signOutBtn} onPress={handleSignOut} disabled={signingOut}>
+            <LinearGradient colors={[colors.error, '#c44444']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.signOutGradient}><MaterialIcons name="logout" size={20} color="#fff" /><Text style={styles.signOutText}>{signingOut ? 'Signing Out...' : 'Sign Out'}</Text></LinearGradient>
           </Pressable>
           <MenuItem icon="delete-forever" label="Delete Account" tint={colors.error} colors={colors} showArrow={false} />
         </View>

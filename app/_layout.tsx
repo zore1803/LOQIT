@@ -1,4 +1,4 @@
-import { ActivityIndicator, Platform, StyleSheet, View, Text, Pressable, NativeModules } from 'react-native'
+import { Platform, StyleSheet, View, Text, Pressable, NativeModules } from 'react-native'
 import { useCallback, useEffect, useState } from 'react'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
@@ -13,6 +13,7 @@ import { disableBackgroundBleScanTask, enableBackgroundBleScanTask } from '../se
 import { enableProtectionTask } from '../services/protectionTask'
 import { startLostTracking, stopLostTracking } from '../services/lostTrackingTask'
 import { LostDeviceLock, hasPasskeySet } from '../components/loqit/LostDeviceLock'
+import { StructuredLoader } from '../components/ui/StructuredLoader'
 
 import { FontFamily } from '../constants/typography'
 import * as Location from 'expo-location'
@@ -45,6 +46,8 @@ function AuthGate() {
   const [lockScreenActive, setLockScreenActive] = useState(false)
   const [lockDeviceId, setLockDeviceId] = useState<string | null>(null)
   const [lockMessage, setLockMessage] = useState<string | undefined>()
+  const [forceHideBootstrapOverlay, setForceHideBootstrapOverlay] = useState(false)
+  const [profileWaitExpired, setProfileWaitExpired] = useState(false)
 
   // ... (bootstrapBleBackground logic remains the same)
 
@@ -264,21 +267,23 @@ function AuthGate() {
     const parsed = Linking.parse(url)
     let accessToken = parsed.queryParams?.access_token as string
     let refreshToken = parsed.queryParams?.refresh_token as string
+    let code = parsed.queryParams?.code as string
 
     if (!accessToken && url.includes('#')) {
       const fragment = url.split('#')[1]
       const params = new URLSearchParams(fragment)
       accessToken = params.get('access_token') || ''
       refreshToken = params.get('refresh_token') || ''
+      code = params.get('code') || ''
     }
-    return { accessToken, refreshToken }
+    return { accessToken, refreshToken, code }
   }
 
   // Process a login deep link: extract tokens and set the Supabase session
   const handleLoginUrl = async (url: string) => {
     console.log('[AuthGate] Processing login URL directly...')
     setIsProcessingDeepLink(true)
-    const { accessToken, refreshToken } = extractTokensFromUrl(url)
+    const { accessToken, refreshToken, code } = extractTokensFromUrl(url)
     if (accessToken) {
       console.log('[AuthGate] Tokens found! Setting session...')
       const { error } = await supabase.auth.setSession({
@@ -302,6 +307,12 @@ function AuthGate() {
           await new Promise(res => setTimeout(res, 100));
           syncAttempts++;
         }
+      }
+    } else if (code) {
+      console.log('[AuthGate] OAuth code found! Exchanging session...')
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (error) {
+        console.error('[AuthGate] exchangeCodeForSession error:', error)
       }
     } else {
       console.log('[AuthGate] No tokens found in URL.')
@@ -334,6 +345,23 @@ function AuthGate() {
 
     return () => subscription.remove()
   }, [])
+
+  useEffect(() => {
+    if (!session || profile) {
+      setProfileWaitExpired(false)
+      return
+    }
+
+    if (loading || isLoggingIn || isProcessingDeepLink) {
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      setProfileWaitExpired(true)
+    }, 10000)
+
+    return () => clearTimeout(timeout)
+  }, [isLoggingIn, isProcessingDeepLink, loading, profile, session])
 
   useEffect(() => {
     // DO NOT REDIRECT if we are still processing a deep link
@@ -369,11 +397,24 @@ function AuthGate() {
     if (session) {
       const isGoogleUser = session?.user?.app_metadata?.provider === 'google' || 
                            session?.user?.identities?.some(id => id.provider === 'google');
+
+      if (!profile) {
+        if (profileWaitExpired) {
+          console.warn('[AuthGate] Session exists but no LOQIT profile was loaded after waiting. Returning to sign-in.');
+          supabase.auth.signOut().finally(() => {
+            router.replace('/(auth)/sign-in')
+          })
+          return;
+        }
+
+        console.log('[AuthGate] Session exists; waiting for profile before routing.');
+        return;
+      }
       
       const isVerified = isGoogleUser || profile?.email_verified;
 
       // Force unverified non-google users to OTP
-      if (!isVerified && !isOtpScreen && !inAuthGroup) {
+      if (!isVerified && !isOtpScreen) {
          console.log('[AuthGate] User unverified, forcing OTP...');
          router.replace({ pathname: '/(auth)/otp-verify', params: { email: session.user.email } });
          return;
@@ -392,7 +433,7 @@ function AuthGate() {
         }
       }
     }
-  }, [loading, router, segments, session, profile, isLoggingIn])
+  }, [loading, router, segments, session, profile, isLoggingIn, isProcessingDeepLink, profileWaitExpired])
 
   const [handsetIdentifier, setHandsetIdentifier] = useState<string | null>(null)
 
@@ -422,7 +463,18 @@ function AuthGate() {
 
   // Auto-scan is handled in bootstrapBleBackground with a 30s restart loop
 
-  const isLoadingState = (loading || isLoggingIn || isProcessingDeepLink || !handsetIdentifier);
+  useEffect(() => {
+    if (!loading && !isLoggingIn && !isProcessingDeepLink) {
+      setForceHideBootstrapOverlay(false)
+    }
+  }, [loading, isLoggingIn, isProcessingDeepLink])
+
+  const waitingForInitialSession = loading && !session
+  const waitingForLoginCallback = (isLoggingIn || isProcessingDeepLink) && !session
+  const waitingForDeviceIdentity = !!session && !handsetIdentifier
+  const isLoadingState = !forceHideBootstrapOverlay && (
+    waitingForInitialSession || waitingForLoginCallback || waitingForDeviceIdentity
+  );
 
   return (
     <PairingGate 
@@ -442,28 +494,28 @@ function AuthGate() {
       )}
       
       {isLoadingState && (
-        <View style={[StyleSheet.absoluteFill, styles.loadingContainer]}>
-          <ActivityIndicator size="large" color={Colors?.primary || '#3D8EFF'} />
-          <View style={{ marginTop: 24, paddingHorizontal: 40, alignItems: 'center' }}>
-            <Text style={{ color: Colors?.onSurface || '#1A1C1E', fontFamily: FontFamily?.headingBold || 'System', fontSize: 24 }}>LOQIT</Text>
-            <Text style={{ color: Colors?.onSurfaceVariant || '#44474E', fontSize: 13, marginTop: 8, textAlign: 'center' }}>
-              Status: {(isLoggingIn || isProcessingDeepLink) ? 'Syncing Profile...' : loading ? 'Checking Session...' : 'Verifying Hardware...'}
+        <StructuredLoader
+          overlay
+          variant="app"
+          colors={Colors}
+          message={(isLoggingIn || isProcessingDeepLink) ? 'Syncing profile...' : loading ? 'Checking session...' : 'Preparing device...'}
+        >
+          <Pressable
+            onPress={async () => {
+              setForceHideBootstrapOverlay(true)
+              const { data: { session: latestSession } } = await supabase.auth.getSession()
+              const sessionEmail = latestSession?.user?.email
+              if (latestSession && profile?.email_verified) { router.replace('/(tabs)') }
+              else if (sessionEmail) { router.replace({ pathname: '/(auth)/otp-verify', params: { email: sessionEmail } }) }
+              else { router.replace('/(auth)/onboarding') }
+            }}
+            style={styles.manualContinueButton}
+          >
+            <Text style={styles.manualContinueText}>
+              App unresponsive? Continue manually
             </Text>
-            
-            {/* MANUAL OVERRIDE (Failsafe requested by user) */}
-            <Pressable 
-              onPress={() => {
-                if (session) { router.replace('/(tabs)') }
-                else { router.replace('/(auth)/onboarding') }
-              }} 
-              style={{ marginTop: 40, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#3D8EFF15', borderRadius: 12 }}
-            >
-              <Text style={{ color: Colors?.primary || '#3D8EFF', fontFamily: FontFamily?.bodyMedium || 'System', fontSize: 12 }}>
-                App unresponsive? Continue manually
-              </Text>
-            </Pressable>
-          </View>
-        </View>
+          </Pressable>
+        </StructuredLoader>
       )}
     </PairingGate>
   )
@@ -483,10 +535,17 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
+  manualContinueButton: {
+    marginTop: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: '#3D8EFF15',
+    borderRadius: 12,
+  },
+  manualContinueText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: 12,
+    textAlign: 'center',
   },
 })

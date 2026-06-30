@@ -65,7 +65,7 @@ export function ChatRoomPage() {
         .eq('id', roomId)
         .single()
       if (roomError) throw roomError
-      setRoom(roomData as ChatRoom)
+      setRoom(roomData as unknown as ChatRoom)
 
       const { data: msgData, error: msgError } = await supabase
         .from('chat_messages')
