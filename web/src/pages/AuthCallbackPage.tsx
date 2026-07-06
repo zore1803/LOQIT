@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { Colors } from '../lib/colors'
 
 export function AuthCallbackPage() {
@@ -21,7 +22,7 @@ export function AuthCallbackPage() {
       if (timer) clearTimeout(timer)
       if (subscription) subscription.unsubscribe()
 
-      const { data: profile } = await supabase
+      const { data: profile } = await db
         .from('profiles')
         .select('role')
         .eq('id', userId)

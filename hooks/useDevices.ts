@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from './useAuth'
 import { startLostTracking, stopLostTracking } from '../services/lostTrackingTask'
 
@@ -73,10 +74,15 @@ type UseDeviceResult = {
 
 // IMEI validation removed as per pure BLE model
 
+// Module-level cache: survives screen remounts so navigating back to the
+// dashboard shows data instantly (stale-while-revalidate) instead of a
+// spinner + refetch every time.
+const devicesCache = new Map<string, DeviceRecord[]>()
+
 export function useDevices() {
   const { user, loading: authLoading } = useAuth()
-  const [devices, setDevices] = useState<DeviceRecord[]>([])
-  const [loading, setLoading] = useState(true) // Start as loading
+  const [devices, setDevices] = useState<DeviceRecord[]>(() => (user?.id && devicesCache.get(user.id)) || [])
+  const [loading, setLoading] = useState(() => !(user?.id && devicesCache.has(user.id)))
   const [error, setError] = useState<string | null>(null)
 
   const fetchDevices = useCallback(async () => {
@@ -90,10 +96,17 @@ export function useDevices() {
       return
     }
 
-    setLoading(true)
+    // Serve cached data immediately; still refetch in the background.
+    const cached = devicesCache.get(user.id)
+    if (cached) {
+      setDevices(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     setError(null)
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('devices')
       .select('*')
       .eq('owner_id', user.id)
@@ -107,6 +120,7 @@ export function useDevices() {
     }
 
     if (data) {
+      devicesCache.set(user.id, data as DeviceRecord[])
       setDevices(data as DeviceRecord[])
     }
 
@@ -144,7 +158,7 @@ export function useDevice(id: string): UseDeviceResult {
     setLoading(true)
     setError(null)
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('devices')
       .select('*, beacon_logs(id, latitude, longitude, accuracy_meters, rssi, reported_at)')
       .eq('id', id)
@@ -180,7 +194,7 @@ export async function registerDevice(input: RegisterDeviceInput): Promise<Device
   // Ensure a profiles row exists for this user.
   // The signup trigger should create it, but if it failed silently we
   // need the row or the devices FK constraint will reject the insert.
-  const { error: profileError } = await supabase
+  const { error: profileError } = await db
     .from('profiles')
     .upsert(
       {
@@ -212,7 +226,7 @@ export async function registerDevice(input: RegisterDeviceInput): Promise<Device
     status: 'registered' as DeviceStatus,
   }
 
-  const { data, error } = await supabase.from('devices').insert(payload).select('*').single()
+  const { data, error } = await db.from('devices').insert(payload).select('*').single()
 
   if (error || !data) {
     throw new Error(error?.message ?? 'Unable to register device.')
@@ -229,7 +243,7 @@ export async function reportLost(deviceId: string, reportData: LostReportInput):
 
   const ownerId = authData.user.id
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from('devices')
     .update({
       status: 'lost',
@@ -246,7 +260,7 @@ export async function reportLost(deviceId: string, reportData: LostReportInput):
     throw new Error(updateError.message)
   }
 
-  const { error: reportError } = await supabase.from('lost_reports').insert({
+  const { error: reportError } = await db.from('lost_reports').insert({
     device_id: deviceId,
     owner_id: ownerId,
     incident_description: reportData.incident_description,
@@ -272,7 +286,7 @@ export async function markFound(deviceId: string): Promise<void> {
     throw new Error(authError?.message ?? 'You must be signed in to update device status.')
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from('devices')
     .update({
       status: 'recovered',
@@ -287,7 +301,7 @@ export async function markFound(deviceId: string): Promise<void> {
   }
 
   // Check if any other devices are still lost before stopping the global background task
-  const { data: lostDevices } = await supabase
+  const { data: lostDevices } = await db
     .from('devices')
     .select('id')
     .eq('owner_id', authData.user.id)

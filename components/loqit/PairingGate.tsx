@@ -8,7 +8,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db';
 import { useAuth } from '../../hooks/useAuth';
 import { Colors } from '../../constants/colors';
 import { FontFamily } from '../../constants/typography';
@@ -46,7 +47,7 @@ export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGa
         if (!userId) return
         setLoading(true);
         // Check if this handset is already linked
-        const { data: linkedDevice, error } = await supabase
+        const { data: linkedDevice, error } = await db
           .from('devices')
           .select('id')
           .eq('installation_id', handsetIdentifier)
@@ -59,7 +60,7 @@ export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGa
           onPaired(linkedDevice.id);
         } else {
           // If not linked, see if they have devices to link
-          const { data: devices } = await supabase
+          const { data: devices } = await db
             .from('devices')
             .select('*')
             .eq('owner_id', userId);
@@ -93,7 +94,7 @@ export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGa
       setError(null);
       console.log(`[PairingGate] Attempting to pair device ${deviceId} with handset ${handsetIdentifier}`);
 
-      const { data: updateData, error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await db
         .from('devices')
         .update({ installation_id: handsetIdentifier })
         .eq('id', deviceId)

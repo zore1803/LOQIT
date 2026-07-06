@@ -12,6 +12,7 @@ import { Toast } from '../../components/ui/Toast'
 import { FontFamily } from '../../constants/typography'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { useTheme } from '../../hooks/useTheme'
 
 type NotificationItem = { id: string; title: string; body: string; type: string; reference_id: string | null; is_read: boolean; created_at: string }
@@ -54,7 +55,7 @@ export default function AlertsScreen() {
 
   const fetch = useCallback(async () => {
     if (!user?.id) return; setLoading(true); setError(null)
-    const { data } = await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    const { data } = await db.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
     if (!data) { setError('Fetch failed'); setLoading(false); return }
     setNotifications(data as any); setLoading(false)
   }, [user])
@@ -71,7 +72,7 @@ export default function AlertsScreen() {
             <Text style={[styles.pageTitle, { color: colors.onSurface }]}>Alerts</Text>
             {unreadCount > 0 && <Text style={[styles.unreadSub, { color: colors.outline }]}>{unreadCount} unread message{unreadCount !== 1 ? 's' : ''}</Text>}
           </View>
-          <Pressable style={[styles.markAllBtn, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }, !unreadCount && { opacity: 0.5 }]} onPress={async () => { await supabase.from('notifications').update({ is_read: true }).eq('user_id', user?.id || ''); setNotifications(n => n.map(i => ({...i, is_read: true}))); setToast('All read') }} disabled={!unreadCount}>
+          <Pressable style={[styles.markAllBtn, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }, !unreadCount && { opacity: 0.5 }]} onPress={async () => { await db.from('notifications').update({ is_read: true }).eq('user_id', user?.id || ''); setNotifications(n => n.map(i => ({...i, is_read: true}))); setToast('All read') }} disabled={!unreadCount}>
             <MaterialIcons name="done-all" size={16} color={unreadCount ? colors.primary : colors.outline} />
             <Text style={{ color: unreadCount ? colors.primary : colors.outline, fontFamily: FontFamily.bodyMedium, fontSize: 12 }}>Mark all read</Text>
           </Pressable>

@@ -5,6 +5,8 @@ import * as WebBrowser from 'expo-web-browser'
 import * as Linking from 'expo-linking'
 
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
+import { completeSessionFromUrl } from '../lib/authSession'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -92,7 +94,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     try {
     const { data, error } = await withTimeout(
-      supabase
+      db
         .from('profiles')
         .select('*')
         .eq('id', userId)
@@ -168,7 +170,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     void bootstrap()
 
-    let lastSignInAt = 0;
     const { data } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
       console.log(`[Auth] onAuthStateChange: event=${event}, hasSession=${!!nextSession}`)
 
@@ -183,14 +184,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
       
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        lastSignInAt = Date.now();
         explicitSignOutRef.current = false
       }
       
       if (nextSession) {
         const generation = authGenerationRef.current
         setSession(nextSession)
-        await loadProfile(nextSession.user.id, generation)
+        // Token refreshes fire this event too — don't re-fetch a profile we
+        // already hold for the same user (it flips loading state and re-runs
+        // session-keyed effects, which reads as an app reload).
+        if (profileRef.current?.id !== nextSession.user.id) {
+          await loadProfile(nextSession.user.id, generation)
+        }
         setIsLoggingIn(false)
         setLoading(false)
       } else {
@@ -207,15 +212,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return
         }
 
-        // CRITICAL: Block phantom SIGNED_OUT events. The SDK can emit these while a
-        // browser OAuth handoff or token refresh is still settling.
-        const timeSinceSignIn = Date.now() - lastSignInAt;
+        // CRITICAL: Block phantom SIGNED_OUT events. The SDK emits these on app
+        // resume / while a token refresh or OAuth handoff is still settling.
+        // Rule: if the SDK STILL HOLDS a valid session, the user is logged in —
+        // never clear it (this was the bug that nuked the session on resume after
+        // ~30s and forced a full app re-bootstrap). The time window only matters
+        // when there is NO recovered session to fall back on.
         const { data: { session: recoveredSession } } = await supabase.auth.getSession();
-        if (recoveredSession && (lastSignInAt === 0 || timeSinceSignIn < 30000)) {
-          console.warn(`[Auth] Suppressing phantom SIGNED_OUT (${lastSignInAt > 0 ? `${timeSinceSignIn}ms after sign-in` : 'SDK still has session'}). Recovering session...`);
+        if (recoveredSession) {
+          console.warn('[Auth] Suppressing phantom SIGNED_OUT (SDK still has a valid session). Recovering...');
           const generation = authGenerationRef.current
-          setSession(recoveredSession);
-          await loadProfile(recoveredSession.user.id, generation)
+          // Only re-set state if it actually drifted, to avoid needless re-renders
+          // and re-running session-keyed effects on every token refresh.
+          setSession((prev) => (prev?.access_token === recoveredSession.access_token ? prev : recoveredSession))
+          if (!profileRef.current) {
+            await loadProfile(recoveredSession.user.id, generation)
+          }
           setIsLoggingIn(false)
           setLoading(false)
           return;
@@ -311,7 +323,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
           const userId = data.user?.id
           if (userId) {
-            await supabase.from('profiles').update({ email_verified: true }).eq('id', userId)
+            await db.from('profiles').update({ email_verified: true }).eq('id', userId)
           }
 
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
@@ -408,9 +420,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
           
           const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { 
-              redirectTo: redirectUrl, 
-              queryParams: { access_type: 'offline', prompt: 'consent' }
+            options: {
+              redirectTo: redirectUrl,
+              // 'select_account' shows the fast account picker instead of the
+              // full consent screen ('prompt: consent') on every sign-in.
+              queryParams: { access_type: 'offline', prompt: 'select_account' }
             },
           })
 
@@ -428,24 +442,40 @@ export function AuthProvider({ children }: PropsWithChildren) {
           const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
           console.log('[Auth-DEBUG] Browser result type:', res.type)
 
-          // On Android, the browser can return 'success', 'dismiss', OR 'cancel'
-          // In ALL cases, we should poll for a session because the deep link handler
-          // in _layout.tsx may have already set it (or will set it momentarily)
-          let attempts = 0;
-          while (attempts < 50) { // 5 seconds total
+          // CRITICAL: When the auth browser returns 'success', res.url carries the
+          // access_token / code from the redirect. The global Linking listener in
+          // _layout.tsx usually does NOT fire for URLs captured by
+          // openAuthSessionAsync, and the mobile client has detectSessionInUrl:false,
+          // so nothing else will establish the session. Complete it here directly.
+          if (res.type === 'success' && res.url) {
+            const result = await completeSessionFromUrl(res.url)
+            if (result.status === 'completed') {
+              console.log('[Auth-DEBUG] Completed session from redirect URL.')
+            } else if (result.status === 'no-credentials') {
+              console.warn('[Auth-DEBUG] Redirect URL had no token or code.')
+            } else {
+              console.warn('[Auth-DEBUG] Failed to complete session from redirect URL:', result.error)
+            }
+          }
+
+          // If we completed the session above, getSession() resolves from local
+          // storage immediately — no polling needed. Only when the browser was
+          // dismissed (Android can return 'dismiss'/'cancel' even on success,
+          // with the deep link arriving via _layout.tsx instead) do we briefly
+          // poll to let that other handler finish.
+          const maxAttempts = res.type === 'success' ? 1 : 20; // 0s vs 2s worst case
+          for (let attempts = 0; attempts < maxAttempts; attempts++) {
             const { data: { session: currentSession } } = await supabase.auth.getSession();
             if (currentSession) {
-              console.log('[Auth-DEBUG] Session found after polling!')
               setSession(currentSession);
               await loadProfile(currentSession.user.id, generation);
               setIsLoggingIn(false); setLoading(false);
               return { error: null };
             }
             await new Promise(r => setTimeout(r, 100));
-            attempts++;
           }
-          
-          console.log('[Auth-DEBUG] Polling timed out. Session may still arrive via deep link.')
+
+          console.log('[Auth-DEBUG] No session yet. It may still arrive via deep link.')
           setIsLoggingIn(false)
           setLoading(false)
           return { error: null }
@@ -489,12 +519,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
           }
 
           if (!userId) {
-            const { data: userData } = await supabase.from('profiles').select('id').eq('email', normalizedEmail).single()
+            const { data: userData } = await db.from('profiles').select('id').eq('email', normalizedEmail).single()
             userId = userData?.id
           }
 
           if (userId) {
-            await supabase.from('profiles').update({ email_verified: true }).eq('id', userId)
+            await db.from('profiles').update({ email_verified: true }).eq('id', userId)
             await loadProfile(userId, generation)
           }
 
@@ -556,7 +586,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       refreshProfile: async () => {
         const nextUserId = session?.user?.id
         if (!nextUserId) { setProfile(null); return; }
-        const { data, error } = await supabase.from('profiles').select('*').eq('id', nextUserId).maybeSingle()
+        const { data, error } = await db.from('profiles').select('*').eq('id', nextUserId).maybeSingle()
         if (!error && data) setProfile(data as Profile)
       },
       getTempUser: () => tempUser,

@@ -1,6 +1,7 @@
 import { CSSProperties, useState } from 'react'
 import { Colors } from '../../lib/colors'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { Card } from '../../components/Card'
 import { Input } from '../../components/Input'
 import { Button } from '../../components/Button'
@@ -31,7 +32,7 @@ export function PoliceSearchPage() {
     try {
       // Search devices
       if (searchType === 'all' || searchType === 'serial') {
-        const { data: devices } = await supabase
+        const { data: devices } = await db
           .from('devices')
           .select('*, profiles(full_name, phone_number)')
           .or(`serial_number.ilike.%${searchQuery}%,make.ilike.%${searchQuery}%,model.ilike.%${searchQuery}%,ble_device_uuid.ilike.%${searchQuery}%`)
@@ -55,7 +56,7 @@ export function PoliceSearchPage() {
 
       // Search reports
       if (searchType === 'all' || searchType === 'complaint') {
-        const { data: reports } = await supabase
+        const { data: reports } = await db
           .from('lost_reports')
           .select('*, devices(make, model, serial_number), profiles(full_name, phone_number)')
           .or(`police_complaint_number.ilike.%${searchQuery}%,incident_description.ilike.%${searchQuery}%`)
@@ -79,7 +80,7 @@ export function PoliceSearchPage() {
 
       // Search users
       if (searchType === 'all' || searchType === 'phone') {
-        const { data: users } = await supabase
+        const { data: users } = await db
           .from('profiles')
           .select('*')
           .or(`full_name.ilike.%${searchQuery}%,phone_number.ilike.%${searchQuery}%`)

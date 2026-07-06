@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Colors } from '../lib/colors'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 
 /* ─── Types ─────────────────────────────────────────── */
@@ -131,7 +132,7 @@ export function AntiTheftPage() {
   /* Load user devices */
   useEffect(() => {
     if (!user) return
-    supabase.from('devices').select('id,make,model,status,serial_number').eq('owner_id', user.id)
+    db.from('devices').select('id,make,model,status,serial_number').eq('owner_id', user.id)
       .then(({ data }) => {
         if (data && data.length > 0) {
           setDevices(data)
@@ -145,8 +146,8 @@ export function AntiTheftPage() {
     if (!deviceId) return
     setLoading(true)
     const [{ data: settingsData }, { data: eventsData }] = await Promise.all([
-      supabase.from('protection_settings').select('*').eq('device_id', deviceId).maybeSingle(),
-      supabase.from('anti_theft_events').select('*').eq('device_id', deviceId).order('triggered_at', { ascending: false }).limit(20),
+      db.from('protection_settings').select('*').eq('device_id', deviceId).maybeSingle(),
+      db.from('anti_theft_events').select('*').eq('device_id', deviceId).order('triggered_at', { ascending: false }).limit(20),
     ])
     setSettings(settingsData ?? DEFAULT_SETTINGS(deviceId))
     setEvents(eventsData ?? [])
@@ -158,13 +159,13 @@ export function AntiTheftPage() {
   /* Realtime subscription for live tamper events */
   useEffect(() => {
     if (!selectedDeviceId) return
-    const channel = supabase
+    const channel = db
       .channel(`anti_theft_${selectedDeviceId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'anti_theft_events', filter: `device_id=eq.${selectedDeviceId}` },
         (payload) => setEvents(prev => [payload.new as TheftEvent, ...prev])
       )
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => { db.removeChannel(channel) }
   }, [selectedDeviceId])
 
   /* Save settings */
@@ -179,8 +180,8 @@ export function AntiTheftPage() {
       updated_at: new Date().toISOString(),
     }
     const { error } = settings.id
-      ? await supabase.from('protection_settings').update(payload).eq('id', settings.id)
-      : await supabase.from('protection_settings').insert(payload)
+      ? await db.from('protection_settings').update(payload).eq('id', settings.id)
+      : await db.from('protection_settings').insert(payload)
 
     setSaveMsg(error ? { type: 'err', text: error.message } : { type: 'ok', text: 'Protection settings saved!' })
     setSaving(false)

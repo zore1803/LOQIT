@@ -24,6 +24,7 @@ import { Toast } from '../../components/ui/Toast'
 import { FontFamily } from '../../constants/typography'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { bleService } from '../../services/ble.service'
 import { useTheme } from '../../hooks/useTheme'
 
@@ -37,7 +38,7 @@ export default function ChatRoomScreen() {
 
   const fetchMessages = useCallback(async () => {
     if (!roomId) return; setLoading(true)
-    const { data } = await supabase.from('chat_messages').select('*').eq('room_id', roomId).order('sent_at', { ascending: true })
+    const { data } = await db.from('chat_messages').select('*').eq('room_id', roomId).order('sent_at', { ascending: true })
     if (data) setMessages(data as any); setLoading(false)
   }, [roomId])
 
@@ -45,7 +46,7 @@ export default function ChatRoomScreen() {
 
   const sendMessage = async () => {
     if (!messageText.trim() || sending) return; setSending(true)
-    const { error } = await supabase.from('chat_messages').insert({ room_id: roomId, sender_role: 'owner', content: messageText.trim(), is_read: false })
+    const { error } = await db.from('chat_messages').insert({ room_id: roomId, sender_role: 'owner', content: messageText.trim(), is_read: false })
     if (!error) { setMessageText(''); void fetchMessages() }
     setSending(false)
   }

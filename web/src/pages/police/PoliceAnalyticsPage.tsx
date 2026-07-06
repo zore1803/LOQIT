@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Colors } from '../../lib/colors'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -56,17 +57,17 @@ export function PoliceAnalyticsPage() {
 
   const loadAnalytics = async () => {
     try {
-      const { data: devices } = await supabase.from('devices').select('status')
+      const { data: devices } = await db.from('devices').select('status')
       const statusCounts: { [key: string]: number } = {}
       devices?.forEach((d: any) => { statusCounts[d.status] = (statusCounts[d.status] || 0) + 1 })
       const devicesByStatus = Object.entries(statusCounts).map(([status, count]) => ({ status, count }))
 
-      const { data: allDevices } = await supabase.from('devices').select('make')
+      const { data: allDevices } = await db.from('devices').select('make')
       const makeCounts: { [key: string]: number } = {}
       allDevices?.forEach((d: any) => { makeCounts[d.make] = (makeCounts[d.make] || 0) + 1 })
       const devicesByMake = Object.entries(makeCounts).map(([make, count]) => ({ make, count })).sort((a,b) => b.count - a.count).slice(0, 5)
 
-      const { data: reports } = await supabase.from('lost_reports')
+      const { data: reports } = await db.from('lost_reports')
         .select('reported_at')
         .gte('reported_at', new Date(Date.now() - 150 * 24 * 60 * 60 * 1000).toISOString())
       const monthCounts: { [key: string]: number } = {}
@@ -80,14 +81,14 @@ export function PoliceAnalyticsPage() {
         count 
       }))
 
-      const { count: totalLost } = await supabase.from('devices').select('*', { count: 'exact', head: true }).in('status', ['lost', 'stolen', 'found', 'recovered'])
-      const { count: recovered } = await supabase.from('devices').select('*', { count: 'exact', head: true }).in('status', ['found', 'recovered'])
-      const { data: resolvedReports } = await supabase.from('lost_reports').select('reported_at, resolved_at').not('resolved_at', 'is', null)
+      const { count: totalLost } = await db.from('devices').select('*', { count: 'exact', head: true }).in('status', ['lost', 'stolen', 'found', 'recovered'])
+      const { count: recovered } = await db.from('devices').select('*', { count: 'exact', head: true }).in('status', ['found', 'recovered'])
+      const { data: resolvedReports } = await db.from('lost_reports').select('reported_at, resolved_at').not('resolved_at', 'is', null)
       
       let totalDays = 0
       resolvedReports?.forEach((r: any) => { totalDays += (new Date(r.resolved_at).getTime() - new Date(r.reported_at).getTime()) / (1000 * 60 * 60 * 24) })
 
-      const { data: tamperEvents } = await supabase.from('anti_theft_events').select('latitude, longitude')
+      const { data: tamperEvents } = await db.from('anti_theft_events').select('latitude, longitude')
       const hotspots: { [key: string]: number } = {}
       tamperEvents?.forEach((ev: any) => {
         if (ev.latitude && ev.longitude) {
@@ -134,7 +135,7 @@ export function PoliceAnalyticsPage() {
         <SummaryCard label="Unrecovered Devices" value={lostCount} description="Total devices currently marked as missing" icon="warning" color={Colors.error} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '30px' }}>
+      <div className="r-grid-main-side" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '30px' }}>
         
         {/* Monthly Chart */}
         <div style={{ background: Colors.surfaceContainer, padding: '30px', borderRadius: '24px', border: `1px solid ${Colors.outlineVariant}` }}>

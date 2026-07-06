@@ -5,6 +5,7 @@ import * as Cellular from 'expo-cellular'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Accelerometer } from 'expo-sensors'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 
 export const PROTECTION_TASK = 'LOQIT_PROTECTION_TASK'
 const SAVED_SIM_CARRIER_KEY = 'loqit_saved_sim_carrier'
@@ -32,7 +33,7 @@ async function logTamperEvent(
   eventData: Record<string, unknown>,
   location: { lat: number; lng: number } | null
 ) {
-  await supabase.from('anti_theft_events').insert({
+  await db.from('anti_theft_events').insert({
     device_id: deviceId,
     owner_id: ownerId,
     event_type: eventType,
@@ -44,7 +45,7 @@ async function logTamperEvent(
 }
 
 async function sendOwnerAlert(ownerId: string, deviceId: string, title: string, body: string) {
-  await supabase.from('notifications').insert({
+  await db.from('notifications').insert({
     user_id: ownerId,
     title,
     body,
@@ -66,7 +67,7 @@ if (!TaskManager.isTaskDefined(PROTECTION_TASK)) {
       if (!activeDeviceId) return BackgroundFetch.BackgroundFetchResult.NoData
 
       // Load protection settings from DB
-      const { data: protectionSettings } = await supabase
+      const { data: protectionSettings } = await db
         .from('protection_settings')
         .select('*')
         .eq('device_id', activeDeviceId)
@@ -86,7 +87,7 @@ if (!TaskManager.isTaskDefined(PROTECTION_TASK)) {
         if (savedCarrier && currentCarrier && savedCarrier !== currentCarrier) {
           console.warn(`[LOQIT-PROTECTION] SIM Change: ${savedCarrier} → ${currentCarrier}`)
 
-          await supabase.from('devices').update({ status: 'lost' }).eq('id', activeDeviceId)
+          await db.from('devices').update({ status: 'lost' }).eq('id', activeDeviceId)
 
           await logTamperEvent(activeDeviceId, userId, 'sim_change', {
             previous_carrier: savedCarrier,
@@ -145,14 +146,14 @@ if (!TaskManager.isTaskDefined(PROTECTION_TASK)) {
       // ── Feature 3: GPS Heartbeat ──────────────────────────
       if (gpsLocation) {
         // Update device record
-        await supabase.from('devices').update({
+        await db.from('devices').update({
           last_seen_at: new Date().toISOString(),
           last_seen_lat: gpsLocation.lat,
           last_seen_lng: gpsLocation.lng,
         }).eq('id', activeDeviceId)
 
         // NEW: Record to history log so owner can see the trail on the map
-        await supabase.from('beacon_logs').insert({
+        await db.from('beacon_logs').insert({
           device_id: activeDeviceId,
           latitude: gpsLocation.lat,
           longitude: gpsLocation.lng,
@@ -165,7 +166,7 @@ if (!TaskManager.isTaskDefined(PROTECTION_TASK)) {
 
       // ── Feature 4: Remote Sync for Lost Status ─────────────
       // Check if server says we are lost, ensuring sync even if app was killed
-      const { data: serverDevice } = await supabase
+      const { data: serverDevice } = await db
         .from('devices')
         .select('status, ble_device_uuid')
         .eq('id', activeDeviceId)

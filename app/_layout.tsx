@@ -1,5 +1,5 @@
-import { Platform, StyleSheet, View, Text, Pressable, NativeModules } from 'react-native'
-import { useCallback, useEffect, useState } from 'react'
+import { StyleSheet, View, Text, Pressable } from 'react-native'
+import { useEffect, useState } from 'react'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -8,19 +8,14 @@ import { Colors } from '../constants/colors'
 import { AuthProvider, useAuth } from '../hooks/useAuth'
 import { ThemeProvider } from '../hooks/useTheme'
 import { supabase } from '../lib/supabase'
-import { bleService } from '../services/ble.service'
-import { disableBackgroundBleScanTask, enableBackgroundBleScanTask } from '../services/backgroundBleTask'
-import { enableProtectionTask } from '../services/protectionTask'
-import { startLostTracking, stopLostTracking } from '../services/lostTrackingTask'
-import { LostDeviceLock, hasPasskeySet } from '../components/loqit/LostDeviceLock'
+import { LostDeviceLock } from '../components/loqit/LostDeviceLock'
 import { StructuredLoader } from '../components/ui/StructuredLoader'
+import { useLostDeviceMonitor } from '../hooks/useLostDeviceMonitor'
 
 import { FontFamily } from '../constants/typography'
-import * as Location from 'expo-location'
 import * as Linking from 'expo-linking'
-import * as Application from 'expo-application'
-import * as Device from 'expo-device'
 import { PairingGate } from '../components/loqit/PairingGate'
+import { completeSessionFromUrl } from '../lib/authSession'
 
 // Side-effect imports for task registration
 import '../services/backgroundBleTask'
@@ -43,281 +38,46 @@ function AuthGate() {
   const segments = useSegments()
   const router = useRouter()
 
-  const [lockScreenActive, setLockScreenActive] = useState(false)
-  const [lockDeviceId, setLockDeviceId] = useState<string | null>(null)
-  const [lockMessage, setLockMessage] = useState<string | undefined>()
   const [forceHideBootstrapOverlay, setForceHideBootstrapOverlay] = useState(false)
   const [profileWaitExpired, setProfileWaitExpired] = useState(false)
+  // Becomes true after the very first time auth settles. Used so the full-screen
+  // overlay only appears on a genuine COLD boot (and explicit logins) — not on
+  // every later session event (token refresh, app resume, profile reload).
+  const [hasBootstrapped, setHasBootstrapped] = useState(false)
 
-  // ... (bootstrapBleBackground logic remains the same)
-
-  const bootstrapBleBackground = useCallback(async () => {
-    try {
-      if (!session) return
-
-      await bleService.requestScanPermissions()
-      const myActiveDeviceId = await AsyncStorage.getItem('loqit_my_active_device_id')
-      
-      let isActuallyLost = false
-      let activeBleUuid = null
-
-      if (myActiveDeviceId) {
-         const { data: dev } = await supabase
-           .from('devices')
-           .select('status, ble_device_uuid, make, model, remote_lock_requested')
-           .eq('id', myActiveDeviceId)
-           .maybeSingle()
-         
-         if (dev?.status === 'lost' || dev?.status === 'stolen') {
-           isActuallyLost = true
-           activeBleUuid = dev.ble_device_uuid
-         }
-
-         // Show lock screen if device is lost OR if a remote lock was sent from dashboard
-         const shouldLock = (dev?.status === 'lost' || dev?.status === 'stolen' || dev?.remote_lock_requested === true)
-         if (shouldLock) {
-           const pkSet = await hasPasskeySet(myActiveDeviceId)
-           if (pkSet) {
-             const { data: ps } = await supabase
-               .from('protection_settings')
-               .select('lock_message')
-               .eq('device_id', myActiveDeviceId)
-               .maybeSingle()
-             setLockMessage(ps?.lock_message || undefined)
-             setLockDeviceId(myActiveDeviceId)
-             setLockScreenActive(true)
-           }
-         }
-      }
-
-      const locallyBroadcasting = await bleService.isBroadcastingMode()
-      
-      if (isActuallyLost && activeBleUuid) {
-        console.log('[LOQIT] Boot: Device is LOST on server. Starting beacon...');
-        try {
-          await bleService.startBroadcasting(activeBleUuid)
-          console.log('[LOQIT] Boot: Beacon started successfully.')
-        } catch (broadcastErr) {
-          console.warn('[LOQIT] Boot: Beacon failed (non-fatal):', broadcastErr)
-        }
-        
-        // Safety: Start lockdown service after a short delay on boot
-        if (Platform.OS === 'android') {
-          setTimeout(() => {
-            console.log('[LOQIT] Triggering hardware lockdown service...');
-            const LOQITSecurity = NativeModules.LOQITSecurity;
-            if (LOQITSecurity && typeof LOQITSecurity.startLockdownService === 'function') {
-              LOQITSecurity.startLockdownService().catch((e: any) => console.log('Lockdown start error:', e));
-            } else {
-              console.log('[LOQIT] LOQITSecurity.startLockdownService not available.');
-            }
-          }, 2000);
-        }
-      } else if (locallyBroadcasting) {
-        await bleService.restoreBroadcastingFromStorage().catch(() => {})
-      }
-      
-      // ALWAYS enable background scanning — even if broadcasting
-      await enableBackgroundBleScanTask()
-
-      // Run the background heartbeat and tamper detection
-      if (myActiveDeviceId) {
-        await enableProtectionTask(myActiveDeviceId)
-      }
-
-      // Start lost tracking if any devices are lost
-      const { data: lostDevices } = await supabase
-        .from('devices')
-        .select('id')
-        .eq('owner_id', session.user.id)
-        .eq('status', 'lost')
-
-      if (lostDevices && lostDevices.length > 0) {
-        await startLostTracking()
-      }
-
-      // ALWAYS start foreground scanning - every LOQIT user is a scout
-      // Even lost devices scan so two lost devices can find each other
-      console.log('[LOQIT] Starting always-on foreground BLE scan...');
-      const startAutoScan = () => {
-        bleService.scanForLOQITDevices((beaconId, rssi) => {
-          console.log(`[LOQIT-AUTO] Detected: ${beaconId} RSSI: ${rssi} dBm`);
-        }).catch(err => console.warn('[LOQIT-AUTO] Scan cycle error (will retry):', err));
-      };
-      startAutoScan();
-      // Restart scan every 30s to keep it alive (Android kills idle scans)
-      if ((globalThis as any).__loqitScanInterval) {
-        clearInterval((globalThis as any).__loqitScanInterval);
-      }
-      const scanInterval = setInterval(startAutoScan, 30000);
-      (globalThis as any).__loqitScanInterval = scanInterval;
-    } catch (error) {
-      console.error('[LOQIT] BLE bootstrap failed (non-fatal):', error)
-    }
-  }, [session, profile, isLoggingIn])
-
-  useEffect(() => {
-    if (!session) return
-    let cancelled = false
-    void bootstrapBleBackground()
-    
-    // Feature: 2-Minute Location Heartbeat
-    let locationInterval: NodeJS.Timeout | null = null;
-    const runLocationPing = async () => {
-      try {
-        const myId = await AsyncStorage.getItem('loqit_my_active_device_id');
-        if (!myId) return;
-
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        if (pos) {
-          await supabase.from('devices').update({
-            last_seen_at: new Date().toISOString(),
-            last_seen_lat: pos.coords.latitude,
-            last_seen_lng: pos.coords.longitude,
-          }).eq('id', myId);
-          console.log('[LOQIT-HEARTBEAT] 💓 2-minute GPS location reported.');
-        }
-      } catch (e) {
-        console.log('[LOQIT-HEARTBEAT] Location ping failed:', e);
-      }
-    };
-
-    // Trigger immediately and then every 2 minutes
-    runLocationPing();
-    locationInterval = setInterval(runLocationPing, 120000); 
-
-
-    // NEW: Robust listener for 'THIS' physical device status (triggers immediate location report)
-    AsyncStorage.getItem('loqit_my_active_device_id').then(async myId => {
-      if (myId) {
-        const { data: dev } = await supabase.from('devices').select('ble_device_uuid').eq('id', myId).maybeSingle()
-        if (dev?.ble_device_uuid) {
-          void bleService.startSelfStatusListener(myId, dev.ble_device_uuid);
-        }
-      }
-    });
-
-    // Listen for device status changes (starts/stops tracking, activates lock screen)
-    const channel = supabase
-      .channel('other-devices-status')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'devices',
-          filter: `owner_id=eq.${session.user.id}`,
-        },
-        async (payload) => {
-          const newStatus = payload.new.status
-          const oldStatus = payload.old.status
-          const changedId = payload.new.id as string
-
-          // Helper: activate lock screen for this device
-          const activateLockScreen = async (deviceId: string) => {
-            const pkSet = await hasPasskeySet(deviceId)
-            if (pkSet) {
-              const { data: ps } = await supabase
-                .from('protection_settings')
-                .select('lock_message')
-                .eq('device_id', deviceId)
-                .maybeSingle()
-              setLockMessage(ps?.lock_message || undefined)
-              setLockDeviceId(deviceId)
-              setLockScreenActive(true)
-            }
-          }
-
-          if (newStatus === 'lost' && oldStatus !== 'lost') {
-            void startLostTracking()
-            // If this is OUR physical device, show the lock screen
-            const myId = await AsyncStorage.getItem('loqit_my_active_device_id')
-            if (myId === changedId) await activateLockScreen(myId)
-          } else if (payload.new.remote_lock_requested === true && !payload.old.remote_lock_requested) {
-            // Remote lock command received from the web dashboard
-            const myId = await AsyncStorage.getItem('loqit_my_active_device_id')
-            if (myId === changedId) await activateLockScreen(myId)
-          } else if (oldStatus === 'lost' && newStatus !== 'lost') {
-            setLockScreenActive(false)
-            void supabase
-              .from('devices')
-              .select('id')
-              .eq('owner_id', session.user.id)
-              .eq('status', 'lost')
-              .then(({ data }) => {
-                if (!data || data.length === 0) void stopLostTracking()
-              })
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      cancelled = true
-      if (locationInterval) clearInterval(locationInterval);
-      void supabase.removeChannel(channel)
-      void bleService.stopSelfStatusListener()
-    }
-  }, [session])
+  // All "this physical device" monitoring (BLE bootstrap + scan, lost-beacon
+  // broadcasting, GPS heartbeat, realtime status, lock screen) lives in this hook
+  // so AuthGate can stay focused on auth + routing.
+  const {
+    lockScreenActive,
+    lockDeviceId,
+    lockMessage,
+    dismissLock,
+    rebootstrap,
+  } = useLostDeviceMonitor(session)
 
   const [isProcessingDeepLink, setIsProcessingDeepLink] = useState(false)
 
-  // Extract tokens from a URL (checks both query params and hash fragment)
-  const extractTokensFromUrl = (url: string) => {
-    const parsed = Linking.parse(url)
-    let accessToken = parsed.queryParams?.access_token as string
-    let refreshToken = parsed.queryParams?.refresh_token as string
-    let code = parsed.queryParams?.code as string
-
-    if (!accessToken && url.includes('#')) {
-      const fragment = url.split('#')[1]
-      const params = new URLSearchParams(fragment)
-      accessToken = params.get('access_token') || ''
-      refreshToken = params.get('refresh_token') || ''
-      code = params.get('code') || ''
-    }
-    return { accessToken, refreshToken, code }
-  }
-
-  // Process a login deep link: extract tokens and set the Supabase session
+  // Process a login deep link: complete the Supabase session from the URL using
+  // the shared helper, then wait briefly for the session to propagate.
   const handleLoginUrl = async (url: string) => {
     console.log('[AuthGate] Processing login URL directly...')
     setIsProcessingDeepLink(true)
-    const { accessToken, refreshToken, code } = extractTokensFromUrl(url)
-    if (accessToken) {
-      console.log('[AuthGate] Tokens found! Setting session...')
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken || '',
-      })
-      if (error) {
-        console.error('[AuthGate] setSession error:', error)
+    try {
+      const result = await completeSessionFromUrl(url)
+      if (result.status === 'error') {
+        console.error('[AuthGate] Failed to complete session from URL:', result.error)
+      } else if (result.status === 'no-credentials') {
+        console.log('[AuthGate] No tokens found in URL.')
       } else {
-        console.log('[AuthGate] Session set successfully! Waiting for sync...');
-        
-        // Safety: Wait for up to 3 seconds for the session to populate in our context
-        let syncAttempts = 0;
-        while (syncAttempts < 30) {
-          const { data: { session: currentSession } } = await supabase.auth.getSession();
-          if (currentSession) {
-             console.log('[AuthGate] Session synced!');
-             setIsProcessingDeepLink(false);
-             break;
-          }
-          await new Promise(res => setTimeout(res, 100));
-          syncAttempts++;
-        }
+        // completeSessionFromUrl awaits setSession/exchangeCodeForSession, so
+        // the SDK already holds the session here; onAuthStateChange will sync
+        // React state. No polling needed.
+        console.log('[AuthGate] Session set successfully.')
       }
-    } else if (code) {
-      console.log('[AuthGate] OAuth code found! Exchanging session...')
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
-      if (error) {
-        console.error('[AuthGate] exchangeCodeForSession error:', error)
-      }
-    } else {
-      console.log('[AuthGate] No tokens found in URL.')
+    } finally {
+      setIsProcessingDeepLink(false)
     }
-    setIsProcessingDeepLink(false)
   }
 
   useEffect(() => {
@@ -425,11 +185,7 @@ function AuthGate() {
         if (!inTabsGroup && !isProcessingDeepLink && !isLoggingIn) {
           console.log('[AuthGate] Moving verified user to Tabs...');
           AsyncStorage.setItem('loqit_just_logged_in', 'true');
-          
-          // Debounce the replace to ensure route tree is stable
-          setTimeout(() => {
-             router.replace('/(tabs)')
-          }, 100);
+          router.replace('/(tabs)')
         }
       }
     }
@@ -469,9 +225,20 @@ function AuthGate() {
     }
   }, [loading, isLoggingIn, isProcessingDeepLink])
 
-  const waitingForInitialSession = loading && !session
+  // Mark the app as bootstrapped once auth has settled for the first time.
+  useEffect(() => {
+    if (!hasBootstrapped && !loading) {
+      setHasBootstrapped(true)
+    }
+  }, [loading, hasBootstrapped])
+
+  // Cold boot only: checking the stored session before we've ever settled.
+  const waitingForInitialSession = !hasBootstrapped && loading && !session
+  // Explicit user action: a login / deep-link handoff is in flight with no session yet.
+  // This is the one case we still want to cover the screen AFTER bootstrap.
   const waitingForLoginCallback = (isLoggingIn || isProcessingDeepLink) && !session
-  const waitingForDeviceIdentity = !!session && !handsetIdentifier
+  // Cold boot only: have a session but the device identity hasn't resolved yet.
+  const waitingForDeviceIdentity = !hasBootstrapped && !!session && !handsetIdentifier
   const isLoadingState = !forceHideBootstrapOverlay && (
     waitingForInitialSession || waitingForLoginCallback || waitingForDeviceIdentity
   );
@@ -481,7 +248,7 @@ function AuthGate() {
       handsetIdentifier={handsetIdentifier || ''} 
       onPaired={(deviceId) => {
         console.log(`[LOQIT] Handset successfully paired with device: ${deviceId}`);
-        bootstrapBleBackground();
+        rebootstrap();
       }}
     >
       <Slot />
@@ -489,7 +256,7 @@ function AuthGate() {
         <LostDeviceLock
           deviceId={lockDeviceId}
           lockMessage={lockMessage}
-          onUnlocked={() => setLockScreenActive(false)}
+          onUnlocked={dismissLock}
         />
       )}
       

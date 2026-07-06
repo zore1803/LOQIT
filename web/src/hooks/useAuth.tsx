@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { getAuthRedirectUrl } from '../lib/authRedirect'
 
 type Profile = {
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('*')
         .eq('id', userId)
@@ -181,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const userId = data.user?.id
       if (userId) {
-        await supabase.from('profiles').update({ email_verified: true }).eq('id', userId)
+        await db.from('profiles').update({ email_verified: true }).eq('id', userId)
       }
 
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -222,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // 3. Mark as verified in profiles table
         if (userId) {
-          await supabase
+          await db
             .from('profiles')
             .update({ email_verified: true })
             .eq('id', userId)

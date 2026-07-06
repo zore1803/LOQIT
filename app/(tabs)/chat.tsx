@@ -11,6 +11,7 @@ import { Toast } from '../../components/ui/Toast'
 import { FontFamily } from '../../constants/typography'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { getFinderRooms, upsertFinderRoom } from '../../services/finderRooms'
 import { useTheme } from '../../hooks/useTheme'
 
@@ -25,7 +26,7 @@ export default function ChatListScreen() {
   const fetchRooms = useCallback(async () => {
     if (!user?.id) return; setLoading(true); setError(null)
     try {
-      const [finderEntries, ownerResponse] = await Promise.all([getFinderRooms(), supabase.from('chat_rooms').select('*, devices(make, model, imei_primary, status)').eq('owner_id', user.id).order('created_at', { ascending: false })])
+      const [finderEntries, ownerResponse] = await Promise.all([getFinderRooms(), db.from('chat_rooms').select('*, devices(make, model, imei_primary, status)').eq('owner_id', user.id).order('created_at', { ascending: false })])
       const merged = (ownerResponse.data as any[] || []).map(r => ({ ...r, role: 'owner' as const }))
       const nextRooms = merged.map(r => ({ id: r.id, deviceId: r.device_id, ownerId: r.owner_id, isActive: r.is_active, createdAt: r.created_at, role: r.role, finderToken: '', make: r.devices?.make || 'Unknown', model: r.devices?.model || 'Device', imeiTail: (r.devices?.imei_primary || '----').slice(-4), status: r.devices?.status || 'registered', lastMessage: 'Tap to chat securely.', lastSentAt: r.created_at, unreadCount: 0 }))
       setRooms(nextRooms)
@@ -43,7 +44,7 @@ export default function ChatListScreen() {
       setLoading(true);
       try {
         // 1. Check if room already exists
-        const { data: existing, error: existErr } = await supabase
+        const { data: existing, error: existErr } = await db
           .from('chat_rooms')
           .select('id')
           .eq('device_id', deviceId)
@@ -60,7 +61,7 @@ export default function ChatListScreen() {
 
         // 2. Get Device Owner
         console.log('[Chat-Init] 🔍 Identifying device owner...');
-        const { data: device, error: devErr } = await supabase
+        const { data: device, error: devErr } = await db
           .from('devices')
           .select('owner_id')
           .eq('id', deviceId)
@@ -73,7 +74,7 @@ export default function ChatListScreen() {
 
         // 3. Create Anonymous Room (Token based, no finder_id in DB)
         console.log(`[Chat-Init] 🛠️ Creating new room for device ${deviceId} and owner ${device.owner_id}`);
-        const { data: newRoom, error: createErr } = await supabase
+        const { data: newRoom, error: createErr } = await db
           .from('chat_rooms')
           .insert({
             device_id: deviceId,
@@ -102,7 +103,7 @@ export default function ChatListScreen() {
 
         // 4. Send initial greeting
         if (initialMsg) {
-          const { error: msgErr } = await supabase.from('chat_messages').insert({
+          const { error: msgErr } = await db.from('chat_messages').insert({
             room_id: newRoom.id,
             sender_id: user.id,
             content: initialMsg,

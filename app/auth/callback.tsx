@@ -3,6 +3,8 @@ import * as Linking from 'expo-linking'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
+import { completeSessionFromUrl } from '../../lib/authSession'
 import { Colors } from '../../constants/colors'
 import { StructuredLoader } from '../../components/ui/StructuredLoader'
 
@@ -15,23 +17,11 @@ export default function AuthCallback() {
     let cancelled = false
 
     const completeOAuth = async () => {
-      try {
-        const url = await Linking.getInitialURL()
-        if (!url) return
-
-        const parsed = Linking.parse(url)
-        const fragment = url.includes('#') ? new URLSearchParams(url.split('#')[1]) : null
-        const accessToken = (parsed.queryParams?.access_token as string) || fragment?.get('access_token')
-        const refreshToken = (parsed.queryParams?.refresh_token as string) || fragment?.get('refresh_token')
-        const code = (parsed.queryParams?.code as string) || fragment?.get('code')
-
-        if (accessToken && refreshToken) {
-          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-        } else if (code) {
-          await supabase.auth.exchangeCodeForSession(code)
-        }
-      } catch (error) {
-        console.error('[AuthCallback] OAuth completion failed:', error)
+      const url = await Linking.getInitialURL()
+      if (!url) return
+      const result = await completeSessionFromUrl(url)
+      if (result.status === 'error') {
+        console.error('[AuthCallback] OAuth completion failed:', result.error)
       }
     }
 
@@ -45,7 +35,7 @@ export default function AuthCallback() {
         return
       }
 
-      const { data: latestProfile, error } = await supabase
+      const { data: latestProfile, error } = await db
         .from('profiles')
         .select('id, email_verified')
         .eq('id', latestSession.user.id)
@@ -76,7 +66,7 @@ export default function AuthCallback() {
       await supabase.auth.signOut()
       setMessage('No LOQIT account is linked with this Google email.')
       setTimeout(() => router.replace('/(auth)/sign-in'), 1600)
-    }, 8000)
+    }, 2500)
 
     return () => {
       cancelled = true

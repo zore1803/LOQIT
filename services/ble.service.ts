@@ -1,4 +1,4 @@
-import { PermissionsAndroid, Platform } from 'react-native'
+import { Alert, Linking, PermissionsAndroid, Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
 import {
@@ -8,6 +8,7 @@ import {
 } from 'munim-bluetooth-peripheral'
 
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 
 export type LoqitDetectedDevice = {
   id: string
@@ -139,6 +140,9 @@ class BLEService {
   public bluetoothState: string = 'Unknown'
   private manager: any = null
   private recentlySeen = new Map<string, number>()
+  // Anything older than this is irrelevant for de-duplication, so it can be pruned.
+  private static readonly RECENTLY_SEEN_TTL_MS = 60000
+  private static readonly RECENTLY_SEEN_MAX = 500
   private broadcastingMode: boolean | null = null
   private stateSubscription: any = null
   private selfStatusSubscription: any = null
@@ -151,6 +155,17 @@ class BLEService {
     // If RxBleClient is created BEFORE permissions are granted natively, it caches Location=False 
     // and permanently errors out with "Cannot start scanning operation" (Code 600) until a hard reboot.
     this.manager = null
+  }
+
+  // Record a key as just-seen and opportunistically evict stale/oversized entries
+  // so this Map can't grow unbounded across a long-running scan.
+  private markSeen(key: string, now: number = Date.now()) {
+    this.recentlySeen.set(key, now)
+    if (this.recentlySeen.size <= BLEService.RECENTLY_SEEN_MAX) return
+    const cutoff = now - BLEService.RECENTLY_SEEN_TTL_MS
+    for (const [k, ts] of this.recentlySeen) {
+      if (ts < cutoff) this.recentlySeen.delete(k)
+    }
   }
 
   // ─── Bluetooth Initialization / Fixes ────────────────────────────────────────
@@ -215,7 +230,41 @@ class BLEService {
 
   // ─── Bluetooth power check ───────────────────────────────────────────────────
 
-  private async ensureBluetoothPoweredOn(): Promise<void> {
+  private btPromptShowing = false
+
+  // Asks the user to turn Bluetooth on. manager.enable() is blocked for
+  // normal apps on Android 13+, so the reliable path is an explicit prompt
+  // that deep-links to the Bluetooth settings screen. The caller's
+  // onStateChange subscription picks up PoweredOn and continues the scan.
+  private promptUserToEnableBluetooth(onCancel: () => void) {
+    if (this.btPromptShowing) return
+    this.btPromptShowing = true
+    Alert.alert(
+      'Bluetooth is off',
+      'LOQIT needs Bluetooth to scan for nearby devices. Turn it on to start scanning.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => { this.btPromptShowing = false; onCancel() },
+        },
+        {
+          text: 'Turn On',
+          onPress: () => {
+            this.btPromptShowing = false
+            if (Platform.OS === 'android') {
+              Linking.sendIntent('android.settings.BLUETOOTH_SETTINGS').catch(() => Linking.openSettings())
+            } else {
+              Linking.openSettings()
+            }
+          },
+        },
+      ],
+      { cancelable: false }
+    )
+  }
+
+  private async ensureBluetoothPoweredOn(interactive = false): Promise<void> {
     // Lazy Initialization: Only build the manager once we actually need it, 
     // ensuring the user has already passed the permission check layer!
     if (!this.manager) await this.resetManager()
@@ -228,18 +277,30 @@ class BLEService {
           subscription.remove()
           resolve()
         } else if (state === 'PoweredOff') {
-          if (Platform.OS === 'android' && !enableRequested && typeof this.manager.enable === 'function') {
+          if (!enableRequested) {
             enableRequested = true
-            console.log('[BLE] Bluetooth is off. Requesting Android Bluetooth enable...')
-            this.manager.enable().catch((enableError: any) => {
-              subscription.remove()
-              reject(new Error(`[BLE] Bluetooth enable request failed: ${enableError?.message ?? enableError}`))
-            })
             this.isScanningActive = false
+            if (interactive) {
+              // Ask the user; keep the subscription alive — when they turn
+              // Bluetooth on, the PoweredOn event resolves and the scan starts.
+              console.log('[BLE] Bluetooth is off. Prompting user to enable it...')
+              this.promptUserToEnableBluetooth(() => {
+                subscription.remove()
+                reject(new Error('[BLE] Bluetooth is off (user declined to enable it).'))
+              })
+            } else if (Platform.OS === 'android' && typeof this.manager.enable === 'function') {
+              // Background path: try the programmatic enable (works < Android 13),
+              // otherwise the timeout below ends the wait quietly.
+              console.log('[BLE] Bluetooth is off. Requesting Android Bluetooth enable...')
+              this.manager.enable().catch((enableError: any) => {
+                subscription.remove()
+                reject(new Error(`[BLE] Bluetooth enable request failed: ${enableError?.message ?? enableError}`))
+              })
+            }
             return
           }
-          subscription.remove()
-          reject(new Error('[BLE] Bluetooth is PoweredOff. Turn on Bluetooth and try again.'))
+          // Second PoweredOff event after we already asked — keep waiting;
+          // the timeout below is the exit path.
         } else if (
           state === 'Unauthorized' ||
           state === 'Unsupported'
@@ -249,15 +310,17 @@ class BLEService {
         }
       }, true) // emitCurrentValue: true resolves immediately if already PoweredOn
 
-      // Fallback timeout — avoids hanging indefinitely on stuck states
+      // Fallback timeout — avoids hanging indefinitely on stuck states.
+      // Interactive waits get 60s so the user has time to visit Settings
+      // and come back; background checks keep the short 5s.
       setTimeout(() => {
         subscription.remove()
         reject(new Error('[BLE] Timed out waiting for Bluetooth to power on.'))
-      }, 5000)
+      }, interactive ? 60000 : 5000)
     })
   }
 
-  async scanForAllDevices(onDeviceFound: (device: any) => void): Promise<boolean> {
+  async scanForAllDevices(onDeviceFound: (device: any) => void, interactive = false): Promise<boolean> {
     try {
       const hasPerms = await this.requestScanPermissions()
       if (!hasPerms) {
@@ -265,7 +328,7 @@ class BLEService {
         return false
       }
 
-      await this.ensureBluetoothPoweredOn()
+      await this.ensureBluetoothPoweredOn(interactive)
       
       // FIX Error 600: Always clear zombie scanners before starting a new one
       this.manager.stopDeviceScan()
@@ -300,7 +363,7 @@ class BLEService {
 
   // ─── Scan for LOQIT devices ──────────────────────────────────────────────────
 
-  async scanForLOQITDevices(onDeviceFound: FoundCallback): Promise<boolean> {
+  async scanForLOQITDevices(onDeviceFound: FoundCallback, interactive = false): Promise<boolean> {
 
     // Hard lock — if a scan is already starting OR active, do nothing
     if (this.isScanStarting || this.isScanningActive) {
@@ -318,8 +381,8 @@ class BLEService {
         return false
       }
 
-      await this.ensureBluetoothPoweredOn()
-      
+      await this.ensureBluetoothPoweredOn(interactive)
+
       // Stop any lingering native scan just in case
       this.manager.stopDeviceScan()
       await new Promise(res => setTimeout(res, 500))
@@ -392,7 +455,7 @@ class BLEService {
 
           // Deduplicate — ignore if seen within last 4.5 seconds
           if ((this.recentlySeen.get(dedupeKey) || 0) > now - 4500) return
-          this.recentlySeen.set(dedupeKey, now)
+          this.markSeen(dedupeKey, now)
 
           const beaconId = specificUuid || dedupeKey
           console.log(
@@ -480,7 +543,7 @@ class BLEService {
 
   async startSelfStatusListener(deviceId: string, bleUuid: string) {
     if (this.selfStatusSubscription) this.selfStatusSubscription.unsubscribe()
-    const chan = supabase.channel(`self-${deviceId}`)
+    const chan = db.channel(`self-${deviceId}`)
     this.selfStatusSubscription = chan
       .on(
         'postgres_changes' as any,
@@ -513,7 +576,7 @@ class BLEService {
     const key = `report-${id}`
     const now = Date.now()
     if ((this.recentlySeen.get(key) || 0) > now - 30000) return null
-    this.recentlySeen.set(key, now)
+    this.markSeen(key, now)
 
     try {
       let data: LoqitDetectedDevice | null = null;
@@ -524,7 +587,7 @@ class BLEService {
         const timeBucket = Math.floor(Date.now() / 900000);
         
         // Fetch ALL lost devices to find the match (approx 15-min window)
-        const { data: lostDevices } = await supabase.from('devices')
+        const { data: lostDevices } = await db.from('devices')
             .select('id, owner_id, ble_device_uuid, ble_beacon_id, make, model, status')
             .in('status', LOST_DEVICE_STATUSES)
             .not('ble_device_uuid', 'is', null);
@@ -546,7 +609,7 @@ class BLEService {
 
       // FALLBACK: Normal ID matching
       if (!data) {
-        const { data: exactMatched } = await supabase
+        const { data: exactMatched } = await db
             .from('devices')
             .select('id, owner_id, ble_device_uuid, ble_beacon_id, make, model, status')
             .or(`ble_device_uuid.eq.${id},ble_beacon_id.eq.${id}`)
@@ -556,7 +619,7 @@ class BLEService {
       }
 
       if (!data && name && !name.startsWith('LQT-') && name.length > 3) {
-        const { data: fuzzy } = await supabase
+        const { data: fuzzy } = await db
           .from('devices')
           .select('id, owner_id, ble_device_uuid, ble_beacon_id, make, model, status')
           .in('status', LOST_DEVICE_STATUSES)
@@ -573,7 +636,7 @@ class BLEService {
         }
         const pos = await Location.getCurrentPositionAsync({}).catch(() => null)
         if (pos) {
-          await supabase.from('beacon_logs').insert({
+          await db.from('beacon_logs').insert({
             device_id: data.id,
             reporter_id: user.id,
             latitude: pos.coords.latitude,
@@ -584,7 +647,7 @@ class BLEService {
           })
 
           // 1. NOTIFY OWNER
-          await supabase.from('notifications').insert({
+          await db.from('notifications').insert({
             user_id: data.owner_id,
             title: '📡 Device Spotted!',
             body: `Your lost device has been detected by a nearby scout at a new location. Check the map!`,
@@ -593,7 +656,7 @@ class BLEService {
           });
 
           // 2. POLICE PORTAL UPDATE: Insert high-priority discovery event
-          await supabase.from('anti_theft_events').insert({
+          await db.from('anti_theft_events').insert({
             device_id: data.id,
             owner_id: data.owner_id,
             event_type: 'discovery_alert',
@@ -609,7 +672,7 @@ class BLEService {
             triggered_at: new Date().toISOString()
           });
 
-          await supabase
+          await db
             .from('devices')
             .update({
               last_seen_at: new Date().toISOString(),

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Colors } from '../lib/colors'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
@@ -51,7 +52,7 @@ export function ChatRoomPage() {
 
   const markAsRead = useCallback(async () => {
     if (!roomId || !role) return
-    await supabase.from('chat_messages').update({ is_read: true }).eq('room_id', roomId).neq('sender_role', role)
+    await db.from('chat_messages').update({ is_read: true }).eq('room_id', roomId).neq('sender_role', role)
   }, [roomId, role])
 
   const fetchRoomAndMessages = useCallback(async () => {
@@ -59,7 +60,7 @@ export function ChatRoomPage() {
     setLoading(true)
     setError(null)
     try {
-      const { data: roomData, error: roomError } = await supabase
+      const { data: roomData, error: roomError } = await db
         .from('chat_rooms')
         .select('id, owner_id, device_id, is_active, devices(make, model, imei_primary)')
         .eq('id', roomId)
@@ -67,7 +68,7 @@ export function ChatRoomPage() {
       if (roomError) throw roomError
       setRoom(roomData as unknown as ChatRoom)
 
-      const { data: msgData, error: msgError } = await supabase
+      const { data: msgData, error: msgError } = await db
         .from('chat_messages')
         .select('id, room_id, sender_role, content, is_read, sent_at')
         .eq('room_id', roomId)
@@ -88,7 +89,7 @@ export function ChatRoomPage() {
 
   useEffect(() => {
     if (!roomId || !room?.is_active) return
-    const channel = supabase
+    const channel = db
       .channel(`room:${roomId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, (payload) => {
         const newMessage = payload.new as ChatMessage
@@ -99,7 +100,7 @@ export function ChatRoomPage() {
         })
       })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => { db.removeChannel(channel) }
   }, [roomId, room?.is_active])
 
   const sendMessage = async () => {
@@ -107,7 +108,7 @@ export function ChatRoomPage() {
     if (!roomId || !text || sending || !room?.is_active) return
     setSending(true)
     try {
-      const { error } = await supabase.from('chat_messages').insert({
+      const { error } = await db.from('chat_messages').insert({
         room_id: roomId, sender_role: role, content: text, is_read: false,
       })
       if (error) throw error
@@ -121,7 +122,7 @@ export function ChatRoomPage() {
 
       // Notify the other party about the new message
       if (role === 'finder' && room?.owner_id) {
-        await supabase.from('notifications').insert({
+        await db.from('notifications').insert({
           user_id: room.owner_id,
           title: '💬 New message from finder',
           body: text.length > 80 ? text.slice(0, 80) + '…' : text,
@@ -137,13 +138,13 @@ export function ChatRoomPage() {
   const markAsFound = async () => {
     if (!room?.device_id || !window.confirm('Mark this device as found? This will close the chat.')) return
     try {
-      await supabase.from('chat_messages').insert({
+      await db.from('chat_messages').insert({
         room_id: roomId, sender_role: 'system',
         content: role === 'owner' ? '✅ Device owner has marked this device as found. Chat closed.' : '✅ Finder has confirmed device recovery. Chat closed.',
         is_read: false,
       })
-      await supabase.from('chat_rooms').update({ is_active: false }).eq('id', roomId)
-      await supabase.from('devices').update({ status: 'recovered' }).eq('id', room.device_id)
+      await db.from('chat_rooms').update({ is_active: false }).eq('id', roomId)
+      await db.from('devices').update({ status: 'recovered' }).eq('id', room.device_id)
       navigate('/chat')
     } catch (err) { alert(err instanceof Error ? err.message : 'Failed to mark as found') }
   }
@@ -152,14 +153,14 @@ export function ChatRoomPage() {
     if (!roomId) return
     setReportingAbuse(true)
     try {
-      await supabase.from('chat_messages').insert({
+      await db.from('chat_messages').insert({
         room_id: roomId, sender_role: 'system',
         content: `⚠️ Abuse report filed by ${role}. This conversation has been flagged for review.`,
         is_read: false,
       })
       // Update room to flagged (graceful — column may not exist yet)
       try {
-        await supabase.from('chat_rooms').update({ flagged_at: new Date().toISOString() }).eq('id', roomId)
+        await db.from('chat_rooms').update({ flagged_at: new Date().toISOString() }).eq('id', roomId)
       } catch { /* ignore if column doesn't exist */ }
       setAbuseReported(true)
       setShowAbuseConfirm(false)

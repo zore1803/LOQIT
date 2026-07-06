@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, Switch, Pressable, NativeModules, Alert, Platform, TextInput, Modal } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
@@ -45,7 +46,7 @@ export default function SecuritySetupScreen() {
                 const pkSet = await hasPasskeySet(myId)
                 setPasskeySet(pkSet)
 
-                const { data } = await supabase.from('devices').select('hardware_lockdown, power_protection').eq('id', myId).maybeSingle()
+                const { data } = await db.from('devices').select('hardware_lockdown, power_protection').eq('id', myId).maybeSingle()
                 if (data) {
                     if (localAdmin === null) setIsAdminActive(!!data.hardware_lockdown)
                     if (localPower === null) setIsOverlayActive(!!data.power_protection)
@@ -70,7 +71,7 @@ export default function SecuritySetupScreen() {
             if (!targetId) targetId = await AsyncStorage.getItem('loqit_my_active_device_id')
             if (targetId) {
                 await AsyncStorage.setItem(`lockdown_admin_${targetId}`, 'true')
-                const { error } = await supabase.from('devices').update({ hardware_lockdown: true }).eq('id', targetId)
+                const { error } = await db.from('devices').update({ hardware_lockdown: true }).eq('id', targetId)
                 if (error) console.log('[Lockdown-Sync] DB skipped.')
                 else console.log('[Lockdown-Sync] Saved to cloud.')
             }
@@ -96,7 +97,7 @@ export default function SecuritySetupScreen() {
             if (!targetId) targetId = await AsyncStorage.getItem('loqit_my_active_device_id')
             if (targetId) {
                 await AsyncStorage.setItem(`lockdown_power_${targetId}`, 'true')
-                const { error } = await supabase.from('devices').update({ power_protection: true }).eq('id', targetId)
+                const { error } = await db.from('devices').update({ power_protection: true }).eq('id', targetId)
                 if (error) console.log('[Lockdown-Sync] DB skipped.')
             }
         } catch (e) { console.error('[Lockdown] Overlay failed:', e); setIsOverlayActive(false) }

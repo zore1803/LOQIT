@@ -1,7 +1,9 @@
 import type { ExpoConfig } from 'expo/config'
 import { withAndroidManifest, ConfigPlugin, AndroidConfig } from '@expo/config-plugins'
 
-const googleMapsApiKey = 'AIzaSyBz6jmHel66wfzwB3zqjAmD73ADuv1T0Ek'
+// Read from the environment (loaded by Expo from .env). Never hardcode keys in
+// source — they get committed to git history. See .env.example for the contract.
+const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
 const withForegroundServiceType: ConfigPlugin = (config) => {
   return withAndroidManifest(config, async (modConfig) => {
@@ -34,8 +36,8 @@ const config: ExpoConfig = {
     eas: {
       projectId: '0cd8eda9-f06c-4bbf-a17d-cc4eb2a7cef0',
     },
-    supabaseUrl: 'https://qnyukwxgrvrfwhrsaepj.supabase.co',
-    supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFueXVrd3hncnZyZndocnNhZXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTkyNTUsImV4cCI6MjA5MTQ3NTI1NX0.82yHHZCoWOeui_zrltOqx-onq6s5G_j0emhhZobM4oE',
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://qnyukwxgrvrfwhrsaepj.supabase.co',
+    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
   },
 
   splash: {
@@ -126,6 +128,9 @@ const config: ExpoConfig = {
       {
         android: {
           minSdkVersion: 24,
+          // Allow plain-HTTP API calls (LAN development server). Remove once
+          // the API is deployed behind HTTPS.
+          usesCleartextTraffic: true,
         },
       },
     ],

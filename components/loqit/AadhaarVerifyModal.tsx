@@ -5,6 +5,7 @@ import * as Crypto from 'expo-crypto'
 import { FontFamily } from '../../constants/typography'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { GradientButton } from '../ui/GradientButton'
 import { useTheme } from '../../hooks/useTheme'
 
@@ -27,7 +28,7 @@ export function AadhaarVerifyModal({ visible, onClose }: AadhaarVerifyModalProps
     setSavingAadhaar(true); setAadhaarMessage(null)
     try {
       const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, digits)
-      const { error } = await supabase.from('profiles').update({ aadhaar_verified: true, aadhaar_hash: hash, updated_at: new Date().toISOString() }).eq('id', user?.id || '')
+      const { error } = await db.from('profiles').update({ aadhaar_verified: true, aadhaar_hash: hash, updated_at: new Date().toISOString() }).eq('id', user?.id || '')
       if (error) { setAadhaarMessage(error.message); return }
       await refreshProfile?.(); resetAndClose()
     } finally { setSavingAadhaar(false) }

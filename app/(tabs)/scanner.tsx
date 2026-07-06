@@ -24,6 +24,7 @@ import { useTheme } from '../../hooks/useTheme'
 import { useAuth } from '../../hooks/useAuth'
 import { bleService, LoqitDetectedDevice } from '../../services/ble.service'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { GradientButton } from '../../components/ui/GradientButton'
 import { Toast } from '../../components/ui/Toast'
 import * as Location from 'expo-location'
@@ -124,7 +125,7 @@ export default function ScannerScreen() {
     // 2. Server Fallback (Deep Scan - if not in local registry or registry didn't load)
     if (!matched) {
       const searchVal = beaconId.trim().toLowerCase()
-      const { data: serverMatch } = await supabase
+      const { data: serverMatch } = await db
         .from('devices')
         .select('*')
         .or(`id.eq.${searchVal},ble_device_uuid.eq.${searchVal},ble_beacon_id.eq.${searchVal}`)
@@ -174,7 +175,7 @@ export default function ScannerScreen() {
   useEffect(() => {
     const fetchRegistry = async () => {
       const ownerId = user?.id || '00000000-0000-0000-0000-000000000000'
-      const { data } = await supabase
+      const { data } = await db
         .from('devices')
         .select('*')
         .or(`status.in.(lost,stolen),owner_id.eq.${ownerId}`)
@@ -266,19 +267,21 @@ export default function ScannerScreen() {
     }
 
     await bleService.stopScan()
+    // interactive=true: if Bluetooth is off, the service shows a "Turn On"
+    // prompt and starts the scan automatically once the user enables it.
     const started = showAll
       ? await bleService.scanForAllDevices((dev) => {
         setAllDevices((curr) => {
           const other = curr.filter((d) => d.id !== dev.id)
           return [{ ...dev, seenAt: Date.now() }, ...other].slice(0, 20)
         })
-      })
+      }, true)
       : await bleService.scanForLOQITDevices((b, r, n, matched) => {
         upsertDevice(b, r, n, false, matched)
-      })
+      }, true)
 
     if (!started) {
-      setToast({ message: 'Turn on Bluetooth, then start scanning again.', type: 'error' })
+      setToast({ message: 'Bluetooth is required to scan. Turn it on and try again.', type: 'error' })
       setIsScanning(false)
       return
     }

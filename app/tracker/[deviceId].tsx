@@ -19,6 +19,7 @@ import MapView, { Marker, Circle, Polyline, PROVIDER_GOOGLE } from 'react-native
 import { FontFamily } from '../../constants/typography'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { useTheme } from '../../hooks/useTheme'
 
 type Region = {
@@ -122,8 +123,8 @@ export default function TrackerScreen() {
     if (!user?.id || !deviceId) return
     setLoading(true)
     const [{ data: d }, { data: l }] = await Promise.all([
-      supabase.from('devices').select('id, make, model, status').eq('id', deviceId).maybeSingle(),
-      supabase.from('beacon_logs').select('*').eq('device_id', deviceId).order('reported_at', { ascending: false }).limit(20)
+      db.from('devices').select('id, make, model, status').eq('id', deviceId).maybeSingle(),
+      db.from('beacon_logs').select('*').eq('device_id', deviceId).order('reported_at', { ascending: false }).limit(20)
     ])
     
     const deviceData = d as any

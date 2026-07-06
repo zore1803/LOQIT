@@ -3,6 +3,7 @@ import {
   AppState,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +24,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useDevices } from '../../hooks/useDevices'
 import * as Location from 'expo-location'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { bleService } from '../../services/ble.service'
 import { useTheme } from '../../hooks/useTheme'
 
@@ -55,10 +57,11 @@ export default function HomeScreen() {
   const router = useRouter()
   const { profile, user, signOut, loading: authLoading } = useAuth()
   const { colors } = useTheme()
-  const { devices, loading: loadingDevices, error: devicesError } = useDevices()
+  const { devices, loading: loadingDevices, error: devicesError, refetch: refetchDevices } = useDevices()
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loadingNotifications, setLoadingNotifications] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [aadhaarModalVisible, setAadhaarModalVisible] = useState(false)
   const [showReportPicker, setShowReportPicker] = useState(false)
   const [displayCounts, setDisplayCounts] = useState({ total: 0, alerts: 0, safe: 0 })
@@ -92,7 +95,7 @@ export default function HomeScreen() {
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) { setNotifications([]); return }
     setLoadingNotifications(true)
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('notifications')
       .select('id, title, body, type, is_read, created_at')
       .eq('user_id', user.id)
@@ -103,6 +106,17 @@ export default function HomeScreen() {
   }, [user?.id])
 
   useEffect(() => { void fetchNotifications() }, [fetchNotifications])
+
+  // Page-level refresh: refetches ONLY this screen's data (devices + notifications),
+  // never reloads the whole app.
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([refetchDevices(), fetchNotifications()])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refetchDevices, fetchNotifications])
 
   const totals = useMemo(() => ({
     total: devices.length,
@@ -131,7 +145,11 @@ export default function HomeScreen() {
     router.replace('/(auth)/onboarding')
   }
 
-  if (authLoading || (user && !profile)) {
+  // Only show the full-screen skeleton during the genuine cold-auth window (no user
+  // yet). Once we have a user, render the real dashboard immediately — the greeting
+  // name fills in when the profile arrives, and devices/notifications have their own
+  // inline skeletons. This removes the long profile-gated blank-loader wait.
+  if (authLoading && !user) {
     return (
       <StructuredLoader
         colors={colors}
@@ -158,14 +176,29 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
         <View style={styles.greetingWrap}>
           <Text style={[styles.greeting, { color: colors.onSurfaceVariant }]}>{getGreetingPrefix()},</Text>
-          <Text style={[styles.greetingName, { color: colors.onSurface }]}>{profile?.full_name || 'User'}</Text>
+          {profile?.full_name ? (
+            <Text style={[styles.greetingName, { color: colors.onSurface }]}>{profile.full_name}</Text>
+          ) : (
+            <Skeleton width={180} height={30} borderRadius={9} style={{ marginVertical: 2 }} />
+          )}
           <Text style={[styles.greetingSub, { color: colors.outline }]}>Your secure network is active and monitoring.</Text>
         </View>
 
-        {!profile?.aadhaar_verified && (
+        {profile && !profile.aadhaar_verified && (
           <Pressable style={[styles.banner, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]} onPress={() => setAadhaarModalVisible(true)}>
             <View style={[styles.bannerIcon, { backgroundColor: `${colors.tertiary}1A` }]}><MaterialIcons name="verified-user" size={18} color={colors.tertiary} /></View>
             <View style={{ flex: 1 }}><Text style={[styles.bannerTitle, { color: colors.onSurface }]}>Complete Identity Verification</Text><Text style={[styles.bannerSub, { color: colors.outline }]}>Verify Aadhaar to unlock all features</Text></View>

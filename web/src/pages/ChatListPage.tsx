@@ -2,6 +2,7 @@ import { CSSProperties, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Colors } from '../lib/colors'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 import { Card } from '../components/Card'
 
@@ -72,7 +73,7 @@ export function ChatListPage() {
 
     try {
       // Fetch rooms where user is owner
-      const { data: ownerRooms, error: ownerError } = await supabase
+      const { data: ownerRooms, error: ownerError } = await db
         .from('chat_rooms')
         .select('id, owner_id, device_id, is_active, created_at, devices(make, model, imei_primary, status)')
         .eq('owner_id', user.id)
@@ -86,7 +87,7 @@ export function ChatListPage() {
         const device = room.devices
         
         // Fetch last message
-        const { data: lastMsg } = await supabase
+        const { data: lastMsg } = await db
           .from('chat_messages')
           .select('content, sent_at')
           .eq('room_id', room.id)
@@ -95,7 +96,7 @@ export function ChatListPage() {
           .single()
 
         // Fetch unread count
-        const { count } = await supabase
+        const { count } = await db
           .from('chat_messages')
           .select('id', { count: 'exact', head: true })
           .eq('room_id', room.id)
@@ -131,7 +132,7 @@ export function ChatListPage() {
     fetchRooms()
 
     // Subscribe to new messages for real-time unread count updates
-    const channel = supabase
+    const channel = db
       .channel('chat_updates')
       .on(
         'postgres_changes',
@@ -160,7 +161,7 @@ export function ChatListPage() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      db.removeChannel(channel)
     }
   }, [fetchRooms])
 

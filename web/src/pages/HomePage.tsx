@@ -152,7 +152,7 @@ export function HomePage() {
       )}
 
       {/* Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
+      <div className="r-grid-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
         <StatCard label="Total Devices" value={total} icon="devices" color={Colors.primary} path="/devices" loading={loading} />
         <StatCard label="Protected" value={safe} icon="verified_user" color="#46f1bb" path="/devices" loading={loading} />
         <StatCard label="At Risk" value={lost} icon="warning" color={lost > 0 ? Colors.error : Colors.onSurfaceVariant} path="/devices" loading={loading} />
@@ -160,7 +160,7 @@ export function HomePage() {
       </div>
 
       {/* Main Content */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px', alignItems: 'start' }}>
+      <div className="r-grid-main-side" style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px', alignItems: 'start' }}>
 
         {/* Recent Devices */}
         <div style={{

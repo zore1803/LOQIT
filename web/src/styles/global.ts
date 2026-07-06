@@ -158,4 +158,46 @@ export const globalStyles = `
   input:focus::placeholder {
     opacity: 0.5;
   }
+
+  img, video, canvas {
+    max-width: 100%;
+  }
+
+  /* ------------------------------------------------------------------
+     Responsive grid overrides.
+     Pages style layouts inline, so these classes (with !important) are
+     how fixed desktop grids collapse on tablet/mobile. Tag the grid div
+     with the matching class and keep its inline desktop style as-is.
+     ------------------------------------------------------------------ */
+
+  @media (max-width: 1100px) {
+    /* 4-across stat rows -> 2x2 */
+    .r-grid-stats {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+    /* main content + fixed side panel -> stacked */
+    .r-grid-main-side {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  @media (max-width: 900px) {
+    /* any multi-column grid -> single column */
+    .r-grid-stack {
+      grid-template-columns: 1fr !important;
+    }
+    .r-hide-mobile {
+      display: none !important;
+    }
+    /* generous desktop padding -> compact */
+    .r-page {
+      padding: 16px !important;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .r-grid-stats {
+      grid-template-columns: 1fr !important;
+    }
+  }
 `

@@ -1,6 +1,7 @@
 import { CSSProperties, useEffect, useState } from 'react'
 import { Colors } from '../../lib/colors'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api'
@@ -166,12 +167,12 @@ export function PoliceDashboardPage() {
         alertsRes,
         usersRes,
       ] = await Promise.all([
-        supabase.from('devices').select('*', { count: 'exact', head: true }).in('status', ['lost', 'stolen']),
-        supabase.from('lost_reports').select('*', { count: 'exact', head: true }).eq('is_active', true),
-        supabase.from('chat_rooms').select('*', { count: 'exact', head: true }).eq('is_active', true),
-        supabase.from('devices').select('*', { count: 'exact', head: true }).in('status', ['found', 'recovered']),
-        supabase.from('beacon_logs').select('*', { count: 'exact', head: true }).gte('reported_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'civilian'),
+        db.from('devices').select('*', { count: 'exact', head: true }).in('status', ['lost', 'stolen']),
+        db.from('lost_reports').select('*', { count: 'exact', head: true }).eq('is_active', true),
+        db.from('chat_rooms').select('*', { count: 'exact', head: true }).eq('is_active', true),
+        db.from('devices').select('*', { count: 'exact', head: true }).in('status', ['found', 'recovered']),
+        db.from('beacon_logs').select('*', { count: 'exact', head: true }).gte('reported_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+        db.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'civilian'),
       ])
 
       setStats({
@@ -195,7 +196,7 @@ export function PoliceDashboardPage() {
   const loadRecentActivity = async () => {
     const activities: RecentActivity[] = []
 
-    const { data: reports } = await supabase
+    const { data: reports } = await db
       .from('lost_reports')
       .select('id, reported_at, devices(make, model)')
       .order('reported_at', { ascending: false })
@@ -213,7 +214,7 @@ export function PoliceDashboardPage() {
       })
     })
 
-    const { data: beacons } = await supabase
+    const { data: beacons } = await db
       .from('beacon_logs')
       .select('id, reported_at, device_id, devices(make, model)')
       .order('reported_at', { ascending: false })
@@ -231,7 +232,7 @@ export function PoliceDashboardPage() {
       })
     })
 
-    const { data: tamperEvents } = await supabase
+    const { data: tamperEvents } = await db
       .from('anti_theft_events')
       .select('id, event_type, triggered_at, devices(make, model)')
       .order('triggered_at', { ascending: false })
@@ -260,7 +261,7 @@ export function PoliceDashboardPage() {
 
   const loadLostDeviceLocations = async () => {
     // 1. Fetch devices AND their reports to ensure every lost device has a beacon
-    const { data: lostDevicesBase } = await supabase
+    const { data: lostDevicesBase } = await db
       .from('devices')
       .select(`
         id, make, model, status, last_seen_lat, last_seen_lng, last_seen_at,
@@ -291,7 +292,7 @@ export function PoliceDashboardPage() {
     })
 
     // 2. Fetch the absolute latest beacon logs to overlay/update positions
-    const { data: beaconLogs } = await supabase
+    const { data: beaconLogs } = await db
       .from('beacon_logs')
       .select(`
         id, 
@@ -355,14 +356,14 @@ export function PoliceDashboardPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
+      <div className="r-grid-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
         <StatCard label="Lost Devices" value={stats.totalLostDevices} icon="warning" color={Colors.error} path="/police/devices" loading={loading} />
         <StatCard label="Active Reports" value={stats.activeReports} icon="description" color={Colors.primary} path="/police/reports" loading={loading} />
         <StatCard label="Recovered" value={stats.devicesRecovered} icon="check_circle" color={Colors.secondary} path="/police/devices" loading={loading} />
         <StatCard label="Protected Users" value={stats.totalUsers} icon="people" color={Colors.tertiary} loading={loading} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', alignItems: 'start' }}>
+      <div className="r-grid-main-side" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ 
             height: '420px', borderRadius: '16px', overflow: 'hidden', position: 'relative', 

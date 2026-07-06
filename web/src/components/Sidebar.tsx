@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Colors } from '../lib/colors'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 
 const navItems = [
   { path: '/dashboard', icon: 'home', label: 'Home' },
@@ -31,26 +32,26 @@ export function Sidebar() {
     if (!user?.id) return
     const fetchUnreadCount = async () => {
       try {
-        const { data: rooms } = await supabase
+        const { data: rooms } = await db
           .from('chat_rooms')
           .select('id')
           .eq('owner_id', user.id)
           .eq('is_active', true)
         if (!rooms || rooms.length === 0) { setUnreadCount(0); return }
-        const { count } = await supabase
+        const { count } = await db
           .from('chat_messages')
           .select('id', { count: 'exact', head: true })
-          .in('room_id', rooms.map(r => r.id))
+          .in('room_id', rooms.map((r: any) => r.id))
           .eq('is_read', false)
           .neq('sender_role', 'owner')
         setUnreadCount(count || 0)
       } catch (e) { console.error(e) }
     }
     fetchUnreadCount()
-    const channel = supabase.channel('unread_messages')
+    const channel = db.channel('unread_messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, fetchUnreadCount)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => { db.removeChannel(channel) }
   }, [user?.id])
 
   const initials = profile?.full_name

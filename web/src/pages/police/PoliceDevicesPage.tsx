@@ -1,6 +1,7 @@
 import { CSSProperties, useEffect, useState } from 'react'
 import { Colors } from '../../lib/colors'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { Card } from '../../components/Card'
 
 type Device = {
@@ -41,7 +42,7 @@ export function PoliceDevicesPage() {
   const loadDevices = async () => {
     setLoading(true)
     try {
-      let query = supabase
+      let query = db
         .from('devices')
         .select(`
           id,
@@ -250,7 +251,7 @@ export function PoliceDevicesPage() {
         </button>
       </div>
 
-      <div style={gridStyle}>
+      <div className="r-grid-main-side" style={gridStyle}>
         <div style={devicesListStyle}>
           {filteredDevices.length === 0 ? (
             <Card style={{ padding: '60px', textAlign: 'center' }}>

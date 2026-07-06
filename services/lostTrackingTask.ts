@@ -1,6 +1,7 @@
 import * as TaskManager from 'expo-task-manager'
 import * as Location from 'expo-location'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 
 export const LOST_TRACKING_TASK = 'LOQIT_LOST_TRACKING_TASK'
 
@@ -33,7 +34,7 @@ if (!TaskManager.isTaskDefined(LOST_TRACKING_TASK)) {
           const userId = session.session.user.id
 
           // Find lost devices for this user
-          const { data: lostDevices } = await supabase
+          const { data: lostDevices } = await db
             .from('devices')
             .select('id')
             .eq('owner_id', userId)
@@ -53,7 +54,7 @@ if (!TaskManager.isTaskDefined(LOST_TRACKING_TASK)) {
           // Report location for all lost devices
           for (const device of lostDevices) {
             // 1. Update device last seen
-            await supabase
+            await db
               .from('devices')
               .update({
                 last_seen_lat: location.coords.latitude,
@@ -63,7 +64,7 @@ if (!TaskManager.isTaskDefined(LOST_TRACKING_TASK)) {
               .eq('id', device.id)
 
             // 2. Add to beacon logs for the live tracker view
-            await supabase.from('beacon_logs').insert({
+            await db.from('beacon_logs').insert({
               device_id: device.id,
               latitude: location.coords.latitude,
               longitude: location.coords.longitude,

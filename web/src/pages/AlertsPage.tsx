@@ -1,6 +1,7 @@
 import { CSSProperties, useEffect, useState, useCallback } from 'react'
 import { Colors } from '../lib/colors'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
@@ -22,7 +23,7 @@ export function AlertsPage() {
   const fetchNotifications = useCallback(async () => {
     if (!user) return
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('notifications')
       .select('*')
       .eq('user_id', user.id)
@@ -39,18 +40,18 @@ export function AlertsPage() {
   }, [fetchNotifications])
 
   const markAsRead = async (id: string) => {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    await db.from('notifications').update({ is_read: true }).eq('id', id)
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
   }
 
   const markAllAsRead = async () => {
     if (!user) return
-    await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id)
+    await db.from('notifications').update({ is_read: true }).eq('user_id', user.id)
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
   }
 
   const deleteNotification = async (id: string) => {
-    await supabase.from('notifications').delete().eq('id', id)
+    await db.from('notifications').delete().eq('id', id)
     setNotifications((prev) => prev.filter((n) => n.id !== id))
   }
 

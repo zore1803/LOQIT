@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { Colors } from '../lib/colors'
 import './SettingsPage.css'
 
@@ -57,7 +58,7 @@ function AadhaarModal({ onClose, onVerified }: { onClose: () => void, onVerified
     
     // Simulate secure verification delay
     await new Promise(r => setTimeout(r, 1500))
-    const { error } = await supabase.from('profiles').update({ aadhaar_verified: true }).eq('id', user?.id)
+    const { error } = await db.from('profiles').update({ aadhaar_verified: true }).eq('id', user?.id)
     
     setLoading(false)
     if (!error) {

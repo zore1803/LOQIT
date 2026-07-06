@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Colors } from '../lib/colors'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useDevices, Device } from '../hooks/useDevices'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
@@ -26,7 +27,7 @@ export function OwnershipTransferPage() {
     setRecipientProfile(null)
     try {
       // Look up user by email via auth - we'll check profiles table
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, full_name, email')
         .eq('email', recipientEmail.trim().toLowerCase())
@@ -52,7 +53,7 @@ export function OwnershipTransferPage() {
       // In a real system this would create a transfer_requests table entry
       // For now we update the device owner directly after confirmation
       // Create a system message / note about the transfer
-      const { error } = await supabase
+      const { error } = await db
         .from('devices')
         .update({ owner_id: recipientProfile.id, status: 'registered' })
         .eq('id', selectedDevice.id)

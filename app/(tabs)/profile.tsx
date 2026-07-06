@@ -18,6 +18,7 @@ import { FontFamily } from '../../constants/typography'
 import { useAuth } from '../../hooks/useAuth'
 import { useDevices } from '../../hooks/useDevices'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { useTheme } from '../../hooks/useTheme'
 
 function daysSince(dateIso?: string) {
@@ -45,7 +46,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     const load = async () => {
       if (!user?.id) return; setLoadingReports(true)
-      const { count } = await supabase.from('lost_reports').select('id', { count: 'exact', head: true }).eq('owner_id', user.id)
+      const { count } = await db.from('lost_reports').select('id', { count: 'exact', head: true }).eq('owner_id', user.id)
       setReportsCount(count || 0); setLoadingReports(false)
     }
     load()

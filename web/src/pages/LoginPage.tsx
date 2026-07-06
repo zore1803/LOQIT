@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Colors } from '../lib/colors'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { getAuthRedirectUrl } from '../lib/authRedirect'
 
@@ -121,9 +122,9 @@ export function LoginPage({ initialMode = 'civilian' }: { initialMode?: 'civilia
   useEffect(() => {
     const load = async () => {
       const [d, r, u] = await Promise.all([
-        supabase.from('devices').select('*', { count: 'exact', head: true }),
-        supabase.from('devices').select('*', { count: 'exact', head: true }).in('status', ['found', 'recovered']),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'civilian'),
+        db.from('devices').select('*', { count: 'exact', head: true }),
+        db.from('devices').select('*', { count: 'exact', head: true }).in('status', ['found', 'recovered']),
+        db.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'civilian'),
       ])
       setStats({ devices: d.count || 0, recovered: r.count || 0, users: u.count || 0 })
     }
@@ -159,7 +160,7 @@ export function LoginPage({ initialMode = 'civilian' }: { initialMode?: 'civilia
         if (error) throw error
         const { data: { user: currentUser } } = await supabase.auth.getUser()
         if (!currentUser) throw new Error('Sign in succeeded but session was not created.')
-        const { data: profile } = await supabase
+        const { data: profile } = await db
           .from('profiles')
           .select('role')
           .eq('id', currentUser.id)
@@ -315,7 +316,7 @@ export function LoginPage({ initialMode = 'civilian' }: { initialMode?: 'civilia
           </div>
 
           {/* Live stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+          <div className="r-grid-stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
             <StatPill icon="devices" label="Devices Registered" value={stats.devices.toString()} delay={0.8} />
             <StatPill icon="check_circle" label="Recovered" value={stats.recovered.toString()} delay={0.9} />
             <StatPill icon="people" label="Users" value={stats.users.toString()} delay={1.0} />

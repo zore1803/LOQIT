@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Colors } from '../../lib/colors'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 
 const policeNavItems = [
   { path: '/police', icon: 'dashboard', label: 'Dashboard', exact: true },
@@ -23,7 +24,7 @@ export function PoliceSidebar() {
 
   useEffect(() => {
     const fetchActiveChats = async () => {
-      const { count } = await supabase
+      const { count } = await db
         .from('chat_rooms')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true)

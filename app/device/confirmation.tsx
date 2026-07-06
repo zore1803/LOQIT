@@ -14,6 +14,7 @@ import { GradientButton } from '../../components/ui/GradientButton'
 import { Colors } from '../../constants/colors'
 import { FontFamily } from '../../constants/typography'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { bleService } from '../../services/ble.service'
 
 type DeviceKeyRow = {
@@ -70,7 +71,7 @@ export default function DeviceConfirmationScreen() {
     }
 
     const loadLatest = async () => {
-      const { data, error: loadError } = await supabase
+      const { data, error: loadError } = await db
         .from('devices')
         .select('loqit_key, ble_device_uuid')
         .eq('id', deviceId)
@@ -103,7 +104,7 @@ export default function DeviceConfirmationScreen() {
       void loadLatest()
     }, 2000)
 
-    const channel = supabase
+    const channel = db
       .channel(`device-key-${deviceId}`)
       .on(
         'postgres_changes',
@@ -125,7 +126,7 @@ export default function DeviceConfirmationScreen() {
       if (pollTimer) {
         clearInterval(pollTimer)
       }
-      void supabase.removeChannel(channel)
+      void db.removeChannel(channel)
     }
   }, [deviceId, loqitKey])
 

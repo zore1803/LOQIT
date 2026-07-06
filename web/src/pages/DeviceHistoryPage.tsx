@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Colors } from '../lib/colors'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { Card } from '../components/Card'
 
 type HistoryEvent = {
@@ -39,7 +40,7 @@ export function DeviceHistoryPage() {
   const loadHistory = async () => {
     setLoading(true)
     try {
-      const { data: dev } = await supabase
+      const { data: dev } = await db
         .from('devices')
         .select('id, make, model, serial_number, status, created_at')
         .eq('id', deviceId)
@@ -61,7 +62,7 @@ export function DeviceHistoryPage() {
       })
 
       // Lost reports
-      const { data: reports } = await supabase
+      const { data: reports } = await db
         .from('lost_reports')
         .select('id, reported_at, resolved_at, incident_description, case_status, last_known_address')
         .eq('device_id', deviceId)
@@ -93,7 +94,7 @@ export function DeviceHistoryPage() {
       }
 
       // Chat rooms (detection events)
-      const { data: rooms } = await supabase
+      const { data: rooms } = await db
         .from('chat_rooms')
         .select('id, created_at, is_active')
         .eq('device_id', deviceId)

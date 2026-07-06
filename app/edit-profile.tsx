@@ -21,6 +21,7 @@ import { Colors } from '../constants/colors'
 import { FontFamily } from '../constants/typography'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 
 export default function EditProfileScreen() {
   const router = useRouter()
@@ -44,7 +45,7 @@ export default function EditProfileScreen() {
 
     setSaving(true)
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({
           full_name: fullName.trim(),

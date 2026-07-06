@@ -14,6 +14,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import * as SecureStore from 'expo-secure-store'
 import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { FontFamily } from '../../constants/typography'
 
 const PASSKEY_STORAGE_KEY = 'loqit_device_passkey_hash'
@@ -33,7 +34,7 @@ export async function setDevicePasskey(pin: string, hint: string, deviceId: stri
   const hashed = simpleHash(salted)
   await SecureStore.setItemAsync(PASSKEY_STORAGE_KEY, hashed)
   await SecureStore.setItemAsync(PASSKEY_HINT_KEY, hint)
-  await supabase
+  await db
     .from('protection_settings')
     .upsert({ device_id: deviceId, loqit_passkey_hash: hashed, passkey_hint: hint }, { onConflict: 'device_id' })
 }
@@ -43,7 +44,7 @@ export async function verifyDevicePasskey(pin: string, deviceId: string): Promis
   const hashed = simpleHash(salted)
   const stored = await SecureStore.getItemAsync(PASSKEY_STORAGE_KEY)
   if (stored) return stored === hashed
-  const { data } = await supabase
+  const { data } = await db
     .from('protection_settings')
     .select('loqit_passkey_hash')
     .eq('device_id', deviceId)
@@ -54,7 +55,7 @@ export async function verifyDevicePasskey(pin: string, deviceId: string): Promis
 export async function hasPasskeySet(deviceId: string): Promise<boolean> {
   const local = await SecureStore.getItemAsync(PASSKEY_STORAGE_KEY)
   if (local) return true
-  const { data } = await supabase
+  const { data } = await db
     .from('protection_settings')
     .select('loqit_passkey_hash')
     .eq('device_id', deviceId)
@@ -121,7 +122,7 @@ export function LostDeviceLock({ deviceId, lockMessage, onUnlocked }: Props) {
       const ok = await verifyDevicePasskey(pin, deviceId)
       if (ok) {
         // Clear any pending remote lock command so the lock doesn't reappear
-        supabase
+        db
           .from('devices')
           .update({ remote_lock_requested: false })
           .eq('id', deviceId)

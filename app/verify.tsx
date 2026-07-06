@@ -19,6 +19,7 @@ import { GradientButton } from '../components/ui/GradientButton'
 import { Colors } from '../constants/colors'
 import { FontFamily } from '../constants/typography'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 
 type VerifyResult = {
   registered: boolean
@@ -108,7 +109,7 @@ export default function VerifyScreen() {
 
     setLoading(true)
     try {
-      const { data, error } = await supabase.rpc('verify_serial', { p_serial: imei })
+      const { data, error } = await db.rpc('verify_serial', { p_serial: imei })
       if (error) {
         throw new Error(error.message)
       }

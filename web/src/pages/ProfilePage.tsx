@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Colors } from '../lib/colors'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 import { useDevices } from '../hooks/useDevices'
 import { Card } from '../components/Card'
@@ -29,7 +30,7 @@ export function ProfilePage() {
   useEffect(() => {
     const loadReportsCount = async () => {
       if (!user?.id) return
-      const { count } = await supabase
+      const { count } = await db
         .from('lost_reports')
         .select('id', { count: 'exact', head: true })
         .eq('owner_id', user.id)
@@ -48,7 +49,7 @@ export function ProfilePage() {
     setLoading(true)
     setMessage({ type: '', text: '' })
 
-    const { error } = await supabase
+    const { error } = await db
       .from('profiles')
       .update({ full_name: fullName, phone_number: phone || null })
       .eq('id', user?.id)
@@ -149,7 +150,7 @@ export function ProfilePage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '40px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(450px, 100%), 1fr))', gap: '40px' }}>
         
         {/* Profile Info Section */}
         <motion.section initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>

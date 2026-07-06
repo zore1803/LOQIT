@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from './useAuth'
 
 export type DeviceStatus = 'registered' | 'lost' | 'found' | 'recovered' | 'stolen'
@@ -49,7 +50,7 @@ export function useDevices() {
     if (!isSilent) setLoading(true)
     setError(null)
 
-    const { data, error: fetchError } = await supabase
+    const { data, error: fetchError } = await db
       .from('devices')
       .select('*')
       .eq('owner_id', user.id)
@@ -83,7 +84,7 @@ export function useDevices() {
   }) => {
     if (!user) return { error: new Error('Not authenticated') }
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('devices')
       .insert({
         ...device,
@@ -105,7 +106,7 @@ export function useDevices() {
   }
 
   const updateDevice = async (id: string, updates: Partial<Device>) => {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('devices')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
@@ -124,7 +125,7 @@ export function useDevices() {
   }
 
   const deleteDevice = async (id: string) => {
-    const { error } = await supabase.from('devices').delete().eq('id', id)
+    const { error } = await db.from('devices').delete().eq('id', id)
 
     if (!error) {
       setDevices((prev) => {
@@ -140,7 +141,7 @@ export function useDevices() {
   const markAsLost = async (id: string) => {
     const result = await updateDevice(id, { status: 'lost' })
     if (!result.error && user) {
-      await supabase.from('notifications').insert({
+      await db.from('notifications').insert({
         user_id: user.id,
         title: '⚠️ Device Reported Lost',
         body: 'Your device has been reported as lost. Our BLE network is now actively scanning for it.',
@@ -154,7 +155,7 @@ export function useDevices() {
   const markAsFound = async (id: string) => {
     const result = await updateDevice(id, { status: 'recovered' })
     if (!result.error && user) {
-      await supabase.from('notifications').insert({
+      await db.from('notifications').insert({
         user_id: user.id,
         title: '✅ Device Marked as Recovered',
         body: 'Your device has been marked as recovered. Great news!',
@@ -166,7 +167,7 @@ export function useDevices() {
   }
 
   const remoteLockDevice = async (id: string, deviceName: string) => {
-    const { error } = await supabase
+    const { error } = await db
       .from('devices')
       .update({
         remote_lock_requested: true,
@@ -176,7 +177,7 @@ export function useDevices() {
       .eq('id', id)
 
     if (!error && user) {
-      await supabase.from('notifications').insert({
+      await db.from('notifications').insert({
         user_id: user.id,
         title: '🔒 Remote Lock Triggered',
         body: `Lock screen activated on ${deviceName}. Only your LOQIT PIN can dismiss it.`,
@@ -191,7 +192,7 @@ export function useDevices() {
   }
 
   const clearRemoteLock = async (id: string) => {
-    await supabase
+    await db
       .from('devices')
       .update({ remote_lock_requested: false, updated_at: new Date().toISOString() })
       .eq('id', id)

@@ -1,5 +1,6 @@
-import { CSSProperties } from 'react'
+import { CSSProperties, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useIsMobile } from './hooks/useIsMobile'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { globalStyles } from './styles/global'
 import { Colors } from './lib/colors'
@@ -95,13 +96,82 @@ function PoliceRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppLayout({ children, isPolice, fullHeight }: { children: React.ReactNode; isPolice?: boolean; fullHeight?: boolean }) {
-  const layoutStyle: CSSProperties = { display: 'flex', minHeight: '100vh', height: '100vh', overflow: 'hidden' }
-  const mainStyle: CSSProperties = { flex: 1, overflow: fullHeight ? 'hidden' : 'auto', backgroundColor: Colors.background, position: 'relative', display: 'flex', flexDirection: 'column' }
+  const isMobile = useIsMobile()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const location = useLocation()
+
+  // Close the drawer whenever navigation happens.
+  useEffect(() => { setDrawerOpen(false) }, [location.pathname])
+
+  // 100dvh tracks the real visible viewport on mobile browsers (address bar).
+  const layoutStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    minHeight: '100dvh',
+    height: fullHeight ? '100dvh' : undefined,
+    overflow: fullHeight ? 'hidden' : undefined,
+  }
+  const mainStyle: CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    overflow: fullHeight ? 'hidden' : 'auto',
+    backgroundColor: Colors.background,
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+  }
+
+  const sidebar = isPolice ? <PoliceSidebar /> : <Sidebar />
+
   return (
     <div style={layoutStyle}>
-      {isPolice ? <PoliceSidebar /> : <Sidebar />}
+      {isMobile ? (
+        <>
+          {/* Mobile top bar */}
+          <header style={{
+            display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '10px 14px', flexShrink: 0,
+            background: 'color-mix(in srgb, var(--color-surfaceContainerLowest) 92%, transparent)',
+            borderBottom: `1px solid ${Colors.outlineVariant}`,
+            position: 'sticky', top: 0, zIndex: 1100,
+            backdropFilter: 'blur(20px)',
+          }}>
+            <button
+              aria-label="Open menu"
+              onClick={() => setDrawerOpen(true)}
+              style={{
+                background: 'transparent', border: 'none', color: Colors.onSurface,
+                display: 'flex', alignItems: 'center', padding: '6px',
+              }}
+            >
+              <span className="material-icons" style={{ fontSize: '26px' }}>menu</span>
+            </button>
+            <img src="/logo.png" alt="LOQIT" style={{ height: '24px', width: 'auto', objectFit: 'contain', filter: 'var(--logo-filter)' }} />
+            <ThemeToggle style={{ marginLeft: 'auto' }} />
+          </header>
+
+          {/* Drawer + scrim */}
+          {drawerOpen && (
+            <div
+              onClick={() => setDrawerOpen(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1200 }}
+            />
+          )}
+          <div style={{
+            position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 1300,
+            transform: drawerOpen ? 'translateX(0)' : 'translateX(-105%)',
+            transition: 'transform 0.25s ease',
+            overflowY: 'auto',
+            boxShadow: drawerOpen ? '0 0 40px rgba(0,0,0,0.35)' : 'none',
+          }}>
+            {sidebar}
+          </div>
+        </>
+      ) : (
+        sidebar
+      )}
       <main style={mainStyle}>
-        <ThemeToggle style={{ position: 'fixed', top: 24, right: 32, zIndex: 1000 }} />
+        {!isMobile && <ThemeToggle style={{ position: 'fixed', top: 24, right: 32, zIndex: 1000 }} />}
         {children}
       </main>
     </div>

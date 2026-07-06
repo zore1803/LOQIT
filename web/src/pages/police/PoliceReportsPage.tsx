@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Colors } from '../../lib/colors'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { Card } from '../../components/Card'
 import { Button } from '../../components/Button'
 import { generateCaseSummary } from '../../services/aiService'
@@ -68,7 +69,7 @@ export function PoliceReportsPage() {
   useEffect(() => { loadOfficers() }, [])
 
   const loadOfficers = async () => {
-    const { data } = await supabase
+    const { data } = await db
       .from('profiles')
       .select('id, full_name')
       .in('role', ['police', 'admin'])
@@ -78,7 +79,7 @@ export function PoliceReportsPage() {
   const loadReports = async () => {
     setLoading(true)
     try {
-      let query = supabase
+      let query = db
         .from('lost_reports')
         .select(`
           id, device_id, owner_id, last_known_lat, last_known_lng, last_known_address,
@@ -102,7 +103,7 @@ export function PoliceReportsPage() {
     if (!selectedReport || !selectedOfficerId) return
     setAssigningOfficer(true)
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('lost_reports')
         .update({ assigned_officer_id: selectedOfficerId, assigned_at: new Date().toISOString(), case_status: 'under_investigation' })
         .eq('id', selectedReport.id)
@@ -121,7 +122,7 @@ export function PoliceReportsPage() {
         updates.is_active = false
         updates.resolved_at = new Date().toISOString()
       }
-      const { error } = await supabase.from('lost_reports').update(updates).eq('id', selectedReport.id)
+      const { error } = await db.from('lost_reports').update(updates).eq('id', selectedReport.id)
       if (error) throw error
       await loadReports()
       setSelectedReport(prev => prev ? { ...prev, case_status: status } : prev)
@@ -132,7 +133,7 @@ export function PoliceReportsPage() {
     if (!selectedReport) return
     setSavingNotes(true)
     try {
-      const { error } = await supabase.from('lost_reports').update({ case_notes: caseNotes }).eq('id', selectedReport.id)
+      const { error } = await db.from('lost_reports').update({ case_notes: caseNotes }).eq('id', selectedReport.id)
       if (error) throw error
       setSelectedReport(prev => prev ? { ...prev, case_notes: caseNotes } : prev)
     } catch (err) { console.error('Error saving notes:', err) }
@@ -286,7 +287,7 @@ Case Notes: ${selectedReport.case_notes || 'None'}
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: selectedReport ? '1fr 460px' : '1fr', gap: '24px' }}>
+      <div className="r-grid-main-side" style={{ display: 'grid', gridTemplateColumns: selectedReport ? '1fr 460px' : '1fr', gap: '24px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '60px', color: Colors.onSurfaceVariant }}>

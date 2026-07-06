@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { Colors } from '../lib/colors'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { ParticleMorphCanvas } from '../components/ParticleMorphCanvas'
@@ -275,10 +276,10 @@ export function LandingPage() {
   useEffect(() => {
     const load = async () => {
       const [devRes, recRes, usrRes, repRes] = await Promise.all([
-        supabase.from('devices').select('*', { count: 'exact', head: true }),
-        supabase.from('devices').select('*', { count: 'exact', head: true }).in('status', ['found', 'recovered']),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'civilian'),
-        supabase.from('lost_reports').select('*', { count: 'exact', head: true }),
+        db.from('devices').select('*', { count: 'exact', head: true }),
+        db.from('devices').select('*', { count: 'exact', head: true }).in('status', ['found', 'recovered']),
+        db.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'civilian'),
+        db.from('lost_reports').select('*', { count: 'exact', head: true }),
       ])
       setStats({
         devices: devRes.count || 0,
@@ -857,7 +858,7 @@ const DEMO_STEPS = [
 function DemoWalkthrough() {
   const [active, setActive] = useState(0)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 300px) 1fr', gap: '24px', alignItems: 'start' }}>
+    <div className="r-grid-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 300px) 1fr', gap: '24px', alignItems: 'start' }}>
       {/* Step list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {DEMO_STEPS.map((step, i) => (

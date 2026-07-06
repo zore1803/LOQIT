@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Colors } from '../../lib/colors'
 import { supabase } from '../../lib/supabase'
+import { db } from '../../lib/db'
 import { Card } from '../../components/Card'
 import { Button } from '../../components/Button'
 import { analyzeChat, ChatAnalysis } from '../../services/aiService'
@@ -77,7 +78,7 @@ export function PoliceChatsPage() {
 
   const loadRooms = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('chat_rooms')
         .select(`
           id, owner_id, device_id, is_active, created_at,
@@ -101,7 +102,7 @@ export function PoliceChatsPage() {
   const loadMessages = async (roomId: string) => {
     setMessagesLoading(true)
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('chat_messages')
         .select('id, room_id, sender_role, content, sent_at')
         .eq('room_id', roomId)
@@ -171,7 +172,7 @@ export function PoliceChatsPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '24px', height: 'calc(100vh - 220px)' }}>
+      <div className="r-grid-main-side" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '24px', height: 'calc(100vh - 220px)' }}>
         {/* Room list */}
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {loading ? (

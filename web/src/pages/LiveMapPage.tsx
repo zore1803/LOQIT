@@ -2,6 +2,7 @@ import { useEffect, useState, CSSProperties } from 'react'
 import { Colors } from '../lib/colors'
 import { useDevices, Device } from '../hooks/useDevices'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api'
 
 type BeaconLog = {
@@ -79,18 +80,18 @@ export function LiveMapPage() {
 
   useEffect(() => {
     fetchBeaconLogs()
-    const sub = supabase
+    const sub = db
       .channel('beacon-logs-realtime')
       .on('postgres_changes', { event: 'INSERT', table: 'beacon_logs', schema: 'public' }, () => {
         fetchBeaconLogs()
       })
       .subscribe()
-    return () => { void supabase.removeChannel(sub) }
+    return () => { void db.removeChannel(sub) }
   }, [])
 
   async function fetchBeaconLogs() {
     // 1. Fetch all devices marked as lost, stolen or recovered as a base
-    const { data: baseDevices } = await supabase
+    const { data: baseDevices } = await db
       .from('devices')
       .select('id, make, model, status, last_seen_lat, last_seen_lng, last_seen_at, serial_number')
       .in('status', ['lost', 'stolen', 'recovered', 'found'])
@@ -99,7 +100,7 @@ export function LiveMapPage() {
     const logsMap = new Map()
 
     // Initialize with device base location
-    baseDevices?.forEach(d => {
+    baseDevices?.forEach((d: any) => {
       logsMap.set(d.id, {
         id: `dev-${d.id}`,
         device_id: d.id,
@@ -113,7 +114,7 @@ export function LiveMapPage() {
     })
 
     // 2. Fetch the actual detection logs (real-time signals)
-    const { data: signals } = await supabase
+    const { data: signals } = await db
       .from('beacon_logs')
       .select(`
         id, 
@@ -191,7 +192,7 @@ export function LiveMapPage() {
         </div>
       </div>
 
-      <div style={{
+      <div className="r-grid-main-side" style={{
         display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '24px',
         height: 'calc(100vh - 200px)', minHeight: '500px'
       }}>
