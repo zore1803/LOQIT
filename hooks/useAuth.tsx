@@ -77,6 +77,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
     profileRef.current = profile
   }, [profile])
 
+  // Offline/slow-network resilience: a signed-in user must stay signed in
+  // until they explicitly log out. The profile is cached on-device so a
+  // failed/slow API call falls back to the last known profile instead of
+  // bouncing the user to the sign-in screen.
+  const profileCacheKey = (userId: string) => `loqit_cached_profile_${userId}`
+
+  const applyCachedProfile = async (userId: string): Promise<boolean> => {
+    try {
+      const raw = await AsyncStorage.getItem(profileCacheKey(userId))
+      if (!raw) return false
+      const cached = JSON.parse(raw) as Profile
+      console.log('[Auth] Using cached profile (network unavailable or slow).')
+      setProfile(cached)
+      profileRef.current = cached
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const loadProfile = async (userId: string, generation = authGenerationRef.current) => {
     const profileLoadKey = `${generation}:${userId}`
     if (loadingProfileUserIdRef.current === profileLoadKey) {
@@ -104,9 +124,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     )
 
     if (error) {
+      // Network/API failure — NOT proof the account is invalid. Fall back to
+      // the cached profile so the user stays signed in.
       console.error('[Auth] Profile load error:', error)
       if (canApplyProfile() && !profileRef.current) {
-        setProfile(null)
+        const usedCache = await applyCachedProfile(userId)
+        if (!usedCache) setProfile(null)
       }
       return
     }
@@ -116,6 +139,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       console.log(`[Auth] Profile loaded successfully. Role: ${data.role}`);
       setProfile(data as Profile)
       profileRef.current = data as Profile
+      void AsyncStorage.setItem(profileCacheKey(userId), JSON.stringify(data))
     } else {
       // No profile row exists — this happens on first-time Google OAuth sign-in.
     const { data: { user: currentUser } } = await withTimeout(
@@ -130,9 +154,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return
     }
     } catch (error) {
+      // Timeout (e.g. Render cold start) — same rule: cached profile wins
+      // over kicking a signed-in user back to the login screen.
       console.log('[Auth] Profile load timed out or failed:', error)
       if (canApplyProfile() && !profileRef.current) {
-        setProfile(null)
+        const usedCache = await applyCachedProfile(userId)
+        if (!usedCache) setProfile(null)
       }
     } finally {
       if (loadingProfileUserIdRef.current === profileLoadKey) {
@@ -551,6 +578,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return { error: null }
       },
       signOut: async () => {
+        const signedOutUserId = session?.user?.id
+        if (signedOutUserId) {
+          await AsyncStorage.removeItem(profileCacheKey(signedOutUserId)).catch(() => {})
+        }
         const generation = authGenerationRef.current + 1
         authGenerationRef.current = generation
         explicitSignOutRef.current = true
