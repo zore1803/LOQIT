@@ -1,16 +1,23 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  User, BadgeCheck, KeyRound, ShieldCheck, Smartphone, ArrowLeftRight,
+  History, Wifi, ClipboardList, Bot, X, Check, Loader2,
+} from 'lucide-react'
+import { LucideIcon } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { db } from '../lib/db'
-import { Colors } from '../lib/colors'
-import './SettingsPage.css'
+import {
+  C, TONE, FONT, Page, PageHeader, Card, Button, Badge,
+  IconTile, inputStyle, cardStyle, Field,
+} from '../components/crm'
 
 function useLocalStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
       const item = window.localStorage.getItem(key)
       return item ? JSON.parse(item) : initialValue
-    } catch (error) {
+    } catch {
       return initialValue
     }
   })
@@ -28,83 +35,143 @@ function useLocalStorage<T>(key: string, initialValue: T) {
   return [storedValue, setValue] as const
 }
 
-function Toggle({ defaultOn = false, onChange }: { defaultOn?: boolean, onChange?: (val: boolean) => void }) {
-  const [on, setOn] = useState(defaultOn)
+function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div
-      className={`loqit-settings-tog ${on ? 'on' : ''}`}
-      onClick={(e) => {
-        e.stopPropagation()
-        setOn(!on)
-        onChange?.(!on)
+    <button
+      onClick={(e) => { e.stopPropagation(); onChange(!value) }}
+      role="switch"
+      aria-checked={value}
+      style={{
+        width: '42px', height: '24px', borderRadius: '999px', border: 'none',
+        cursor: 'pointer', position: 'relative', flexShrink: 0,
+        background: value ? C.primary : C.tileBorder,
+        transition: 'background .2s ease',
       }}
-    />
+    >
+      <span style={{
+        position: 'absolute', top: '3px', left: value ? '21px' : '3px',
+        width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
+        transition: 'left .2s ease', boxShadow: '0 1px 3px rgba(17,18,22,.25)',
+      }} />
+    </button>
   )
 }
 
-function AadhaarModal({ onClose, onVerified }: { onClose: () => void, onVerified: () => void }) {
+/** One settings line: icon, label, description, and a trailing control. */
+function Row({ icon: Icon, tone = TONE.blue, title, subtitle, onClick, trailing, last }: {
+  icon: LucideIcon; tone?: string; title: string; subtitle: string
+  onClick?: () => void; trailing?: React.ReactNode; last?: boolean
+}) {
+  return (
+    <div
+      className={onClick ? 'crm-row' : undefined}
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '12px',
+        padding: '13px 20px',
+        borderBottom: last ? 'none' : `1px solid ${C.border}`,
+        cursor: onClick ? 'pointer' : 'default',
+      }}
+    >
+      <IconTile icon={Icon} tone={tone} size={34} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>{title}</div>
+        <div style={{ fontSize: '12px', color: C.muted, marginTop: '1px' }}>{subtitle}</div>
+      </div>
+      {trailing}
+    </div>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: '11px', fontWeight: 700, color: C.label,
+      letterSpacing: '0.6px', textTransform: 'uppercase',
+      margin: '0 0 10px 4px',
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function AadhaarModal({ onClose, onVerified }: { onClose: () => void; onVerified: () => void }) {
   const [aadhaar, setAadhaar] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [step, setStep] = useState(1)
   const { user } = useAuth()
 
   const handleVerify = async () => {
+    setError('')
     if (aadhaar.replace(/\s/g, '').length !== 12) {
-      alert('Aadhaar must be exactly 12 digits')
+      setError('Aadhaar must be exactly 12 digits')
       return
     }
     setLoading(true)
-    
-    // Simulate secure verification delay
     await new Promise(r => setTimeout(r, 1500))
-    const { error } = await db.from('profiles').update({ aadhaar_verified: true }).eq('id', user?.id)
-    
+    const { error: updateError } = await db.from('profiles').update({ aadhaar_verified: true }).eq('id', user?.id)
     setLoading(false)
-    if (!error) {
-      setStep(2)
-      setTimeout(() => {
-        onVerified()
-        onClose()
-      }, 2000)
-    } else {
-      alert('Failed to verify Aadhaar. Please try again.')
-    }
+    if (updateError) { setError(updateError.message); return }
+    setStep(2)
+    onVerified()
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div style={{ background: Colors.surfaceContainer, padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '400px', border: `1px solid ${Colors.outlineVariant}`, boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(17,18,22,.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '24px', fontFamily: FONT,
+      }}
+      onClick={onClose}
+    >
+      <div style={{ ...cardStyle, padding: '26px', width: '100%', maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
         {step === 1 ? (
           <>
-            <div style={{ width: 48, height: 48, borderRadius: '12px', background: `${Colors.primary}20`, color: Colors.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-              <span className="material-icons" style={{ fontSize: 24 }}>badge</span>
-            </div>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-onSurface)', marginBottom: '8px' }}>Verify Aadhaar</h2>
-            <p style={{ color: 'var(--color-onSurfaceVariant)', fontSize: '14px', marginBottom: '24px', lineHeight: 1.5 }}>
-              Link your government ID to establish legal ownership of your devices. This is securely encrypted.
-            </p>
-            <input 
-              type="text" 
-              placeholder="0000 0000 0000" 
-              value={aadhaar} 
-              onChange={e => setAadhaar(e.target.value.replace(/[^\d\s]/g, ''))}
-              maxLength={14}
-              style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'var(--color-surfaceContainer)', border: `1px solid ${Colors.outline}`, color: 'var(--color-onSurface)', fontSize: '16px', letterSpacing: '2px', marginBottom: '24px', outline: 'none' }}
-            />
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'transparent', border: `1px solid ${Colors.outlineVariant}`, color: 'var(--color-onSurface)', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button disabled={loading} onClick={handleVerify} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: Colors.primary, border: 'none', color: '#fff', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                {loading ? <span className="material-icons" style={{ animation: 'spin 1s linear infinite' }}>sync</span> : 'Verify'}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <IconTile icon={BadgeCheck} tone={TONE.green} size={44} />
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: C.heading, margin: 0 }}>Verify Aadhaar</h3>
+                  <p style={{ fontSize: '12px', color: C.muted, margin: '2px 0 0' }}>Proves legal ownership of your devices</p>
+                </div>
+              </div>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, padding: '4px', lineHeight: 0 }}>
+                <X size={18} />
               </button>
+            </div>
+
+            <Field label="Aadhaar number" hint="Stored only as a one-way hash — the number itself is never saved.">
+              <input
+                className="crm-input"
+                style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace', letterSpacing: '1px' }}
+                value={aadhaar}
+                onChange={(e) => setAadhaar(e.target.value.replace(/[^\d\s]/g, ''))}
+                placeholder="1234 5678 9012"
+                maxLength={14}
+              />
+            </Field>
+
+            {error && (
+              <p style={{ fontSize: '12px', color: TONE.red, margin: '10px 0 0' }}>{error}</p>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <Button variant="ghost" onClick={onClose}>Cancel</Button>
+              <Button icon={loading ? Loader2 : Check} onClick={handleVerify} disabled={loading}>
+                {loading ? 'Verifying…' : 'Verify'}
+              </Button>
             </div>
           </>
         ) : (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: `${Colors.primary}20`, color: Colors.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-              <span className="material-icons" style={{ fontSize: 32 }}>check_circle</span>
-            </div>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-onSurface)', marginBottom: '8px' }}>Verification Successful</h2>
-            <p style={{ color: 'var(--color-onSurfaceVariant)', fontSize: '14px' }}>Your identity has been linked.</p>
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <IconTile icon={Check} tone={TONE.green} size={48} />
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: C.heading, margin: '14px 0 4px' }}>Verification successful</h3>
+            <p style={{ fontSize: '13px', color: C.muted, margin: '0 0 20px' }}>
+              Your account is now Aadhaar-verified.
+            </p>
+            <Button onClick={onClose}>Done</Button>
           </div>
         )}
       </div>
@@ -112,235 +179,148 @@ function AadhaarModal({ onClose, onVerified }: { onClose: () => void, onVerified
   )
 }
 
-function WebSettings() {
+function CivilianSettings() {
   const navigate = useNavigate()
   const { profile, user, refreshProfile } = useAuth()
   const [showAadhaarModal, setShowAadhaarModal] = useState(false)
-  
-  const name = profile?.full_name || 'User'
-  const initials = name.slice(0, 2).toUpperCase()
-  const isAadhaarVerified = profile?.aadhaar_verified
-  
   const [twoFactorWeb, setTwoFactorWeb] = useLocalStorage('loqit_web_2fa', false)
-  
+
+  const isAadhaarVerified = profile?.aadhaar_verified
+
   return (
-    <div className="loqit-settings-panel">
+    <>
       {showAadhaarModal && <AadhaarModal onClose={() => setShowAadhaarModal(false)} onVerified={refreshProfile} />}
 
-      <div className="loqit-settings-hero">
-        <div className="loqit-settings-avatar" style={{ background: '#085041', color: '#E1F5EE' }}>{initials}</div>
+      <div className="crm-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '20px', alignItems: 'start' }}>
         <div>
-          <div className="loqit-settings-hero-title">{name}</div>
-          <div className="loqit-settings-hero-sub">{user?.email} · Civilian portal</div>
+          <SectionLabel>Account &amp; profile</SectionLabel>
+          <Card>
+            <Row icon={User} title="Personal details" subtitle="Name, email and phone number" onClick={() => navigate('/profile')} />
+            <Row
+              icon={BadgeCheck} tone={TONE.green}
+              title="Aadhaar verification"
+              subtitle="Required as legal proof of device ownership"
+              onClick={() => !isAadhaarVerified && setShowAadhaarModal(true)}
+              trailing={<Badge tone={isAadhaarVerified ? TONE.green : TONE.amber}>{isAadhaarVerified ? 'Verified' : 'Pending'}</Badge>}
+            />
+            <Row icon={KeyRound} tone={TONE.amber} title="Password" subtitle="Change the password for this account" onClick={() => navigate('/profile')} />
+            <Row
+              icon={ShieldCheck} tone={TONE.blue}
+              title="Two-factor authentication"
+              subtitle="Ask for an OTP when signing in to the dashboard"
+              trailing={<Toggle value={twoFactorWeb} onChange={setTwoFactorWeb} />}
+              last
+            />
+          </Card>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <span className="loqit-settings-badge-green">Active</span>
-        </div>
-      </div>
 
-      <div className="loqit-settings-s-section">
-        <div className="loqit-settings-s-label">Account & profile</div>
-        <div className="loqit-settings-s-card">
-          <div className="loqit-settings-s-row" onClick={() => navigate('/profile')}>
-            <div className="loqit-settings-s-icon" style={{ background: '#534AB7' }}>
-              <span className="material-icons" style={{ color: '#EEEDFE', fontSize: 20 }}>person</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Personal details</div>
-              <div className="loqit-settings-s-sub">Name, email, phone number</div>
-            </div>
-            <span className="loqit-settings-chev">›</span>
-          </div>
+        <div>
+          <SectionLabel>Devices &amp; ownership</SectionLabel>
+          <Card>
+            <Row icon={Smartphone} title="Registered devices" subtitle="View and manage every linked device" onClick={() => navigate('/devices')} />
+            <Row icon={ArrowLeftRight} title="Transfer ownership" subtitle="Hand a device over to another LOQIT user" onClick={() => navigate('/transfer-ownership')} last />
+          </Card>
 
-          <div className="loqit-settings-s-row" onClick={() => !isAadhaarVerified && setShowAadhaarModal(true)}>
-            <div className="loqit-settings-s-icon" style={{ background: '#0F6E56' }}>
-              <span className="material-icons" style={{ color: '#E1F5EE', fontSize: 20 }}>badge</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Aadhaar verification</div>
-              <div className="loqit-settings-s-sub">Required for legal device ownership proof</div>
-            </div>
-            {isAadhaarVerified ? (
-              <span className="loqit-settings-badge-green">Verified</span>
-            ) : (
-              <span className="loqit-settings-badge-warn">Pending</span>
-            )}
-            <span className="loqit-settings-chev">›</span>
-          </div>
-
-          <div className="loqit-settings-s-row" onClick={() => navigate('/profile')}>
-            <div className="loqit-settings-s-icon" style={{ background: '#993C1D' }}>
-              <span className="material-icons" style={{ color: '#FAECE7', fontSize: 20 }}>lock</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Password & security</div>
-              <div className="loqit-settings-s-sub">Password, 2FA, recovery options</div>
-            </div>
-            <span className="loqit-settings-chev">›</span>
-          </div>
-
-          <div className="loqit-settings-s-row">
-            <div className="loqit-settings-s-icon" style={{ background: '#993C1D' }}>
-              <span className="material-icons" style={{ color: '#FAECE7', fontSize: 20 }}>security</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Two-factor authentication</div>
-              <div className="loqit-settings-s-sub">OTP on login for web dashboard</div>
-            </div>
-            <Toggle defaultOn={twoFactorWeb} onChange={setTwoFactorWeb} />
+          <div style={{ marginTop: '20px' }}>
+            <SectionLabel>Signed in as</SectionLabel>
+            <Card style={{ padding: '16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>
+                {profile?.full_name || 'LOQIT User'}
+              </div>
+              <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>
+                {user?.email} · Civilian portal
+              </div>
+            </Card>
           </div>
         </div>
       </div>
-
-      <div className="loqit-settings-s-section">
-        <div className="loqit-settings-s-label">Device & ownership</div>
-        <div className="loqit-settings-s-card">
-          <div className="loqit-settings-s-row" onClick={() => navigate('/devices')}>
-            <div className="loqit-settings-s-icon" style={{ background: '#534AB7' }}>
-              <span className="material-icons" style={{ color: '#EEEDFE', fontSize: 20 }}>smartphone</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Registered devices</div>
-              <div className="loqit-settings-s-sub">View and manage all linked devices</div>
-            </div>
-            <span className="loqit-settings-chev">›</span>
-          </div>
-
-          <div className="loqit-settings-s-row" onClick={() => navigate('/transfer-ownership')}>
-            <div className="loqit-settings-s-icon" style={{ background: '#534AB7' }}>
-              <span className="material-icons" style={{ color: '#EEEDFE', fontSize: 20 }}>swap_horiz</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Transfer ownership</div>
-              <div className="loqit-settings-s-sub">Hand a device to another user</div>
-            </div>
-            <span className="loqit-settings-chev">›</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   )
 }
 
 function PoliceSettings() {
   const navigate = useNavigate()
   const { profile, user } = useAuth()
-  
-  const name = profile?.full_name || 'Insp. Oberoi'
-  const initials = name.slice(0, 2).toUpperCase()
-
   const [ipAllowlist, setIpAllowlist] = useLocalStorage('loqit_police_ip_allowlist', true)
   const [autoAssign, setAutoAssign] = useLocalStorage('loqit_police_auto_assign', false)
   const [aiThreshold, setAiThreshold] = useLocalStorage('loqit_police_ai_threshold', '70')
 
   return (
-    <div className="loqit-settings-panel">
-      <div className="loqit-settings-hero">
-        <div className="loqit-settings-avatar" style={{ background: '#633806', color: '#FAEEDA' }}>{initials}</div>
-        <div>
-          <div className="loqit-settings-hero-title">{name}</div>
-          <div className="loqit-settings-hero-sub">Police Dept · {user?.email}</div>
-        </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <span className="loqit-settings-badge-info">Police</span>
+    <div className="crm-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '20px', alignItems: 'start' }}>
+      <div>
+        <SectionLabel>Account &amp; credentials</SectionLabel>
+        <Card>
+          <Row icon={User} title="Officer profile" subtitle="Name, badge number and station" onClick={() => navigate('/profile')} />
+          <Row
+            icon={ShieldCheck} tone={TONE.green}
+            title="Role &amp; jurisdiction"
+            subtitle="Police role verified by an administrator"
+            trailing={<Badge tone={TONE.green}>Verified</Badge>}
+            last
+          />
+        </Card>
+
+        <div style={{ marginTop: '20px' }}>
+          <SectionLabel>Signed in as</SectionLabel>
+          <Card style={{ padding: '16px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>
+              {profile?.full_name || 'Officer'}
+            </div>
+            <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>
+              {user?.email} · Police portal
+            </div>
+          </Card>
         </div>
       </div>
 
-      <div className="loqit-settings-s-section">
-        <div className="loqit-settings-s-label">Account & credentials</div>
-        <div className="loqit-settings-s-card">
-          <div className="loqit-settings-s-row" onClick={() => navigate('/profile')}>
-            <div className="loqit-settings-s-icon" style={{ background: '#534AB7' }}>
-              <span className="material-icons" style={{ color: '#EEEDFE', fontSize: 20 }}>person</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Officer profile</div>
-              <div className="loqit-settings-s-sub">Name, badge number, station</div>
-            </div>
-            <span className="loqit-settings-chev">›</span>
-          </div>
-          <div className="loqit-settings-s-row">
-            <div className="loqit-settings-s-icon" style={{ background: '#0F6E56' }}>
-              <span className="material-icons" style={{ color: '#E1F5EE', fontSize: 20 }}>verified_user</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Role & jurisdiction</div>
-              <div className="loqit-settings-s-sub">Police role verified by admin</div>
-            </div>
-            <span className="loqit-settings-badge-green">Verified</span>
-          </div>
-        </div>
-      </div>
+      <div>
+        <SectionLabel>Security &amp; access</SectionLabel>
+        <Card>
+          <Row
+            icon={ShieldCheck} tone={TONE.red}
+            title="Two-factor authentication"
+            subtitle="Always required for police accounts"
+            trailing={<Badge tone={TONE.red}>Always on</Badge>}
+          />
+          <Row icon={History} tone={TONE.red} title="Access log" subtitle="Every civilian record you have opened" onClick={() => navigate('/police/analytics')} />
+          <Row
+            icon={Wifi} tone={TONE.red}
+            title="IP allowlist"
+            subtitle="Restrict sign-in to station network addresses"
+            trailing={<Toggle value={ipAllowlist} onChange={setIpAllowlist} />}
+            last
+          />
+        </Card>
 
-      <div className="loqit-settings-s-section">
-        <div className="loqit-settings-s-label">Security & access</div>
-        <div className="loqit-settings-s-card">
-          <div className="loqit-settings-s-row">
-            <div className="loqit-settings-s-icon" style={{ background: '#A32D2D' }}>
-              <span className="material-icons" style={{ color: '#FCEBEB', fontSize: 20 }}>security</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Two-factor authentication</div>
-              <div className="loqit-settings-s-sub">Mandatory for police accounts</div>
-            </div>
-            <span className="loqit-settings-badge-red">Always on</span>
-          </div>
-          <div className="loqit-settings-s-row" onClick={() => navigate('/police/analytics')}>
-            <div className="loqit-settings-s-icon" style={{ background: '#A32D2D' }}>
-              <span className="material-icons" style={{ color: '#FCEBEB', fontSize: 20 }}>history</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Access log</div>
-              <div className="loqit-settings-s-sub">Every civilian record you have viewed</div>
-            </div>
-            <span className="loqit-settings-chev">›</span>
-          </div>
-          <div className="loqit-settings-s-row">
-            <div className="loqit-settings-s-icon" style={{ background: '#A32D2D' }}>
-              <span className="material-icons" style={{ color: '#FCEBEB', fontSize: 20 }}>wifi_protected_setup</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">IP allowlist</div>
-              <div className="loqit-settings-s-sub">Restrict login to station network IPs</div>
-            </div>
-            <Toggle defaultOn={ipAllowlist} onChange={setIpAllowlist} />
-          </div>
-        </div>
-      </div>
-
-      <div className="loqit-settings-s-section">
-        <div className="loqit-settings-s-label">Case & investigation</div>
-        <div className="loqit-settings-s-card">
-          <div className="loqit-settings-s-row">
-            <div className="loqit-settings-s-icon" style={{ background: '#854F0B' }}>
-              <span className="material-icons" style={{ color: '#FAEEDA', fontSize: 20 }}>assignment_ind</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">Default case assignment</div>
-              <div className="loqit-settings-s-sub">Auto-assign new reports to me</div>
-            </div>
-            <Toggle defaultOn={autoAssign} onChange={setAutoAssign} />
-          </div>
-          <div className="loqit-settings-s-row">
-            <div className="loqit-settings-s-icon" style={{ background: '#854F0B' }}>
-              <span className="material-icons" style={{ color: '#FAEEDA', fontSize: 20 }}>smart_toy</span>
-            </div>
-            <div className="loqit-settings-s-text">
-              <div className="loqit-settings-s-title">AI flag threshold</div>
-              <div className="loqit-settings-s-sub">Minimum AI confidence to surface flags</div>
-            </div>
-            <select 
-              className="loqit-settings-select-pill" 
-              value={aiThreshold} 
-              onChange={(e) => setAiThreshold(e.target.value)}
-              style={{ background: 'transparent', outline: 'none', cursor: 'pointer' }}
-            >
-              <option value="50">50%</option>
-              <option value="70">70%</option>
-              <option value="90">90%</option>
-              <option value="99">99%</option>
-            </select>
-          </div>
+        <div style={{ marginTop: '20px' }}>
+          <SectionLabel>Case &amp; investigation</SectionLabel>
+          <Card>
+            <Row
+              icon={ClipboardList} tone={TONE.amber}
+              title="Default case assignment"
+              subtitle="Assign new reports to me automatically"
+              trailing={<Toggle value={autoAssign} onChange={setAutoAssign} />}
+            />
+            <Row
+              icon={Bot} tone={TONE.amber}
+              title="AI flag threshold"
+              subtitle="Minimum confidence before a chat is flagged"
+              trailing={
+                <select
+                  className="crm-input"
+                  value={aiThreshold}
+                  onChange={(e) => setAiThreshold(e.target.value)}
+                  style={{ ...inputStyle, width: 'auto', padding: '7px 10px', cursor: 'pointer' }}
+                >
+                  <option value="50">50%</option>
+                  <option value="70">70%</option>
+                  <option value="90">90%</option>
+                  <option value="99">99%</option>
+                </select>
+              }
+              last
+            />
+          </Card>
         </div>
       </div>
     </div>
@@ -352,15 +332,12 @@ export function SettingsPage() {
   const isPolice = profile?.role === 'police' || profile?.role === 'admin'
 
   return (
-    <div style={{ minHeight: '100%', padding: '32px' }}>
-      <div style={{ marginBottom: '32px', borderBottom: '1px solid var(--color-outlineVariant)', paddingBottom: '20px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--color-onSurface)' }}>Preferences & Settings</h1>
-        <p style={{ color: 'var(--color-onSurfaceVariant)', marginTop: '8px' }}>Manage your account, privacy, and system configuration.</p>
-      </div>
-
-      <div className="loqit-settings-wrap">
-        {isPolice ? <PoliceSettings /> : <WebSettings />}
-      </div>
-    </div>
+    <Page>
+      <PageHeader
+        title="Settings"
+        subtitle="Manage your account, security and device preferences"
+      />
+      {isPolice ? <PoliceSettings /> : <CivilianSettings />}
+    </Page>
   )
 }

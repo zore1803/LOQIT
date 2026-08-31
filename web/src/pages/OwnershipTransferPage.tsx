@@ -1,11 +1,21 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Colors } from '../lib/colors'
+import {
+  ArrowLeft, Smartphone, UserSearch, CheckCircle2, Check, AlertCircle,
+  Search, ArrowLeftRight, Loader2, ShieldAlert,
+} from 'lucide-react'
 import { db } from '../lib/db'
 import { useDevices, Device } from '../hooks/useDevices'
-import { Card } from '../components/Card'
-import { Button } from '../components/Button'
+import {
+  C, TONE, FONT, Page, PageHeader, Card, CardHeader, Button, Badge,
+  EmptyState, Field, inputStyle, IconTile,
+} from '../components/crm'
+
+const STEPS = [
+  { n: 1, label: 'Select device', icon: Smartphone },
+  { n: 2, label: 'Confirm recipient', icon: UserSearch },
+  { n: 3, label: 'Done', icon: CheckCircle2 },
+] as const
 
 export function OwnershipTransferPage() {
   const navigate = useNavigate()
@@ -18,6 +28,7 @@ export function OwnershipTransferPage() {
   const [recipientProfile, setRecipientProfile] = useState<{ id: string; full_name: string } | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState('')
+  const [transferError, setTransferError] = useState('')
 
   const lookupRecipient = async () => {
     if (!recipientEmail.trim()) return
@@ -25,7 +36,6 @@ export function OwnershipTransferPage() {
     setLookupError('')
     setRecipientProfile(null)
     try {
-      // Look up user by email via auth - we'll check profiles table
       const { data, error } = await db
         .from('profiles')
         .select('id, full_name, email')
@@ -33,13 +43,13 @@ export function OwnershipTransferPage() {
         .single()
 
       if (error || !data) {
-        setLookupError('No LOQIT account found for this email. The recipient must register first.')
+        setLookupError('No LOQIT account found for that email. The recipient has to register first.')
         return
       }
       setRecipientProfile(data as { id: string; full_name: string })
       setStep(2)
     } catch {
-      setLookupError('Could not find recipient. Please check the email address.')
+      setLookupError('Could not look up that recipient. Check the email address.')
     } finally {
       setLookupLoading(false)
     }
@@ -48,10 +58,8 @@ export function OwnershipTransferPage() {
   const initiateTransfer = async () => {
     if (!selectedDevice || !recipientProfile) return
     setLoading(true)
+    setTransferError('')
     try {
-      // In a real system this would create a transfer_requests table entry
-      // For now we update the device owner directly after confirmation
-      // Create a system message / note about the transfer
       const { error } = await db
         .from('devices')
         .update({ owner_id: recipientProfile.id, status: 'registered' })
@@ -60,187 +68,265 @@ export function OwnershipTransferPage() {
       if (error) throw error
       setStep(3)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Transfer failed. Please try again.')
+      setTransferError(err instanceof Error ? err.message : 'Transfer failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const inputStyle = {
-    width: '100%', padding: '14px 16px', borderRadius: '12px', fontSize: '15px',
-    background: Colors.surfaceContainerHigh, border: `1px solid ${Colors.outlineVariant}`,
-    color: Colors.onSurface, outline: 'none', boxSizing: 'border-box' as const,
-    fontFamily: 'inherit',
-  }
-
   return (
-    <div style={{ padding: '32px', maxWidth: '680px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
-        <button onClick={() => navigate('/devices')} style={{ background: 'none', border: 'none', color: Colors.onSurfaceVariant, cursor: 'pointer', padding: '8px', borderRadius: '8px' }}>
-          <span className="material-icons">arrow_back</span>
-        </button>
-        <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 700, color: Colors.onSurface, margin: 0 }}>Ownership Transfer</h1>
-          <p style={{ color: Colors.onSurfaceVariant, fontSize: '15px', margin: '4px 0 0' }}>Securely transfer device ownership to another LOQIT user</p>
+    <Page>
+      <PageHeader
+        title="Transfer Ownership"
+        subtitle="Hand a registered device over to another LOQIT user"
+        actions={<Button variant="ghost" icon={ArrowLeft} onClick={() => navigate('/devices')}>Back to devices</Button>}
+      />
+
+      {/* Steps */}
+      <Card style={{ padding: '14px 16px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {STEPS.map((s, i) => {
+            const done = step > s.n
+            const active = step === s.n
+            const Icon = done ? CheckCircle2 : s.icon
+            return (
+              <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '9px',
+                  padding: '8px 12px', borderRadius: '999px', minWidth: 0,
+                  background: active ? 'rgba(39,118,234,.06)' : 'transparent',
+                  border: `1px solid ${active ? C.primary : 'transparent'}`,
+                }}>
+                  <Icon size={16} color={done ? TONE.green : active ? C.primary : C.muted} strokeWidth={1.9} style={{ flexShrink: 0 }} />
+                  <span style={{
+                    fontSize: '12.5px', fontWeight: active ? 600 : 500,
+                    color: done ? TONE.green : active ? C.primary : C.muted,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {s.label}
+                  </span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <div style={{ flex: 1, height: '1px', background: C.tileBorder, minWidth: '12px' }} />
+                )}
+              </div>
+            )
+          })}
         </div>
-      </div>
+      </Card>
 
-      {/* Progress steps */}
-      <div style={{ display: 'flex', gap: '0', marginBottom: '32px', background: Colors.surfaceContainerLow, borderRadius: '14px', padding: '4px' }}>
-        {[['Select Device', 'devices'], ['Confirm Recipient', 'person_search'], ['Done', 'check_circle']].map(([label, icon], i) => {
-          const stepNum = (i + 1) as 1 | 2 | 3
-          const isActive = step === stepNum
-          const isDone = step > stepNum
-          return (
-            <div key={label} style={{ flex: 1, padding: '10px', borderRadius: '10px', background: isActive ? `${Colors.primary}22` : 'none', textAlign: 'center' }}>
-              <span className="material-icons" style={{ fontSize: '20px', color: isDone ? Colors.secondary : isActive ? Colors.primary : Colors.outline, display: 'block' }}>
-                {isDone ? 'check_circle' : icon}
-              </span>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: isActive ? Colors.primary : Colors.onSurfaceVariant, marginTop: '4px' }}>{label}</div>
-            </div>
-          )
-        })}
-      </div>
+      <div className="crm-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '20px', alignItems: 'start' }}>
 
-      <AnimatePresence mode="wait">
-        {/* Step 1: Select device + recipient */}
-        {step === 1 && (
-          <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-            <Card style={{ padding: '24px', marginBottom: '20px' }}>
-              <h3 style={{ color: Colors.onSurface, fontWeight: 700, marginBottom: '16px' }}>Select Device to Transfer</h3>
-              {devices.length === 0 ? (
-                <p style={{ color: Colors.onSurfaceVariant, textAlign: 'center', padding: '20px' }}>No devices registered</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {devices.map(d => (
-                    <button
-                      key={d.id}
-                      onClick={() => setSelectedDevice(d)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px',
-                        borderRadius: '12px', border: `2px solid ${selectedDevice?.id === d.id ? Colors.primary : Colors.outlineVariant}`,
-                        background: selectedDevice?.id === d.id ? `${Colors.primary}12` : Colors.surfaceContainerHigh,
-                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s',
-                      }}
-                    >
-                      <span className="material-icons" style={{ fontSize: '28px', color: selectedDevice?.id === d.id ? Colors.primary : Colors.outline }}>smartphone</span>
-                      <div>
-                        <div style={{ fontWeight: 700, color: Colors.onSurface }}>{d.make} {d.model}</div>
-                        <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant }}>Serial: {d.serial_number}</div>
-                      </div>
-                      {selectedDevice?.id === d.id && (
-                        <span className="material-icons" style={{ marginLeft: 'auto', color: Colors.primary }}>check_circle</span>
+        <Card>
+          {step === 1 && (
+            <>
+              <CardHeader title="Select a device" subtitle="Choose which device to transfer, then name the recipient" />
+              <div style={{ padding: '0 24px 24px' }}>
+                {devices.length === 0 ? (
+                  <EmptyState
+                    icon={Smartphone}
+                    title="No devices to transfer"
+                    body="You need a registered device before you can hand one over."
+                    action={<Button onClick={() => navigate('/add-device')}>Register a device</Button>}
+                  />
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                      {devices.map(d => {
+                        const active = selectedDevice?.id === d.id
+                        const isLost = d.status === 'lost' || d.status === 'stolen'
+                        return (
+                          <button
+                            key={d.id}
+                            onClick={() => setSelectedDevice(d)}
+                            disabled={isLost}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '11px',
+                              padding: '12px 14px', borderRadius: '12px', width: '100%',
+                              textAlign: 'left', fontFamily: FONT,
+                              cursor: isLost ? 'not-allowed' : 'pointer',
+                              opacity: isLost ? 0.55 : 1,
+                              background: active ? 'rgba(39,118,234,.05)' : C.card,
+                              border: `1px solid ${active ? C.primary : C.border}`,
+                              transition: 'all .15s ease',
+                            }}
+                          >
+                            <IconTile icon={Smartphone} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>{d.make} {d.model}</div>
+                              <div style={{ fontSize: '11.5px', color: C.muted, marginTop: '1px', fontFamily: 'ui-monospace, monospace' }}>
+                                {d.serial_number}
+                              </div>
+                            </div>
+                            {isLost
+                              ? <Badge tone={TONE.red}>Cannot transfer</Badge>
+                              : active && <Check size={16} color={C.primary} />}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '18px' }}>
+                      <Field label="Recipient's LOQIT email" hint="They must already have a LOQIT account.">
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            className="crm-input"
+                            style={inputStyle}
+                            type="email"
+                            value={recipientEmail}
+                            onChange={(e) => { setRecipientEmail(e.target.value); setLookupError('') }}
+                            placeholder="name@example.com"
+                            disabled={!selectedDevice}
+                          />
+                          <Button
+                            icon={lookupLoading ? Loader2 : Search}
+                            onClick={lookupRecipient}
+                            disabled={!selectedDevice || !recipientEmail.trim() || lookupLoading}
+                          >
+                            {lookupLoading ? 'Looking up…' : 'Find'}
+                          </Button>
+                        </div>
+                      </Field>
+
+                      {!selectedDevice && (
+                        <p style={{ fontSize: '12px', color: C.muted, margin: '10px 0 0' }}>
+                          Pick a device above first.
+                        </p>
                       )}
-                    </button>
+
+                      {lookupError && (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: '8px',
+                          padding: '10px 14px', borderRadius: '12px', marginTop: '12px',
+                          background: '#FEF2F2', border: '1px solid #FECACA',
+                          color: '#991B1B', fontSize: '12.5px',
+                        }}>
+                          <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                          {lookupError}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+
+          {step === 2 && selectedDevice && recipientProfile && (
+            <>
+              <CardHeader title="Confirm the transfer" subtitle="Check both sides before you hand it over" />
+              <div style={{ padding: '0 24px 24px' }}>
+                <div style={{ background: C.tile, border: `1px solid ${C.tileBorder}`, borderRadius: '12px', overflow: 'hidden', marginBottom: '18px' }}>
+                  {[
+                    { label: 'Device', value: `${selectedDevice.make} ${selectedDevice.model}` },
+                    { label: 'Serial number', value: selectedDevice.serial_number, mono: true },
+                    { label: 'New owner', value: recipientProfile.full_name || '—' },
+                    { label: 'Recipient email', value: recipientEmail },
+                  ].map((row, i, arr) => (
+                    <div key={row.label} style={{
+                      display: 'flex', justifyContent: 'space-between', gap: '12px',
+                      padding: '11px 14px',
+                      borderBottom: i < arr.length - 1 ? `1px solid ${C.tileBorder}` : 'none',
+                    }}>
+                      <span style={{ fontSize: '12px', color: C.label }}>{row.label}</span>
+                      <span style={{
+                        fontSize: '12.5px', fontWeight: 500, color: C.heading, textAlign: 'right',
+                        fontFamily: row.mono ? 'ui-monospace, monospace' : 'inherit', wordBreak: 'break-all',
+                      }}>
+                        {row.value}
+                      </span>
+                    </div>
                   ))}
                 </div>
-              )}
-            </Card>
 
-            {selectedDevice && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <Card style={{ padding: '24px', marginBottom: '20px' }}>
-                  <h3 style={{ color: Colors.onSurface, fontWeight: 700, marginBottom: '16px' }}>Transfer Reason</h3>
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                    {[['selling', 'Selling', 'sell'], ['gifting', 'Gifting', 'card_giftcard'], ['other', 'Other', 'more_horiz']].map(([val, label, icon]) => (
-                      <button key={val} onClick={() => setReason(val as typeof reason)} style={{
-                        display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '10px',
-                        border: `1px solid ${reason === val ? Colors.primary : Colors.outlineVariant}`,
-                        background: reason === val ? `${Colors.primary}18` : Colors.surfaceContainerHigh,
-                        color: reason === val ? Colors.primary : Colors.onSurfaceVariant,
-                        cursor: 'pointer', fontWeight: 600, fontSize: '14px',
-                      }}>
-                        <span className="material-icons" style={{ fontSize: '18px' }}>{icon}</span>
-                        {label}
-                      </button>
-                    ))}
+                <Field label="Reason for transfer">
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {([['selling', 'Selling'], ['gifting', 'Gifting'], ['other', 'Other']] as const).map(([key, label]) => {
+                      const active = reason === key
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setReason(key)}
+                          style={{
+                            padding: '8px 16px', borderRadius: '999px', cursor: 'pointer',
+                            fontSize: '12.5px', fontWeight: active ? 600 : 500, fontFamily: FONT,
+                            background: active ? 'rgba(39,118,234,.06)' : C.card,
+                            border: `1px solid ${active ? C.primary : C.border}`,
+                            color: active ? C.primary : C.label,
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
                   </div>
+                </Field>
 
-                  <h3 style={{ color: Colors.onSurface, fontWeight: 700, marginBottom: '12px' }}>Recipient Email</h3>
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
-                    <input
-                      type="email" placeholder="recipient@example.com"
-                      value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)}
-                      style={{ ...inputStyle, flex: 1 }}
-                    />
-                    <Button onClick={lookupRecipient} loading={lookupLoading} disabled={!recipientEmail.trim()}>
-                      Look Up
-                    </Button>
-                  </div>
-                  {lookupError && (
-                    <div style={{ padding: '10px 14px', borderRadius: '10px', background: `${Colors.error}18`, color: Colors.error, fontSize: '13px', border: `1px solid ${Colors.error}33` }}>
-                      {lookupError}
-                    </div>
-                  )}
-                </Card>
-              </motion.div>
-            )}
-          </motion.div>
-        )}
-
-        {/* Step 2: Confirm */}
-        {step === 2 && recipientProfile && selectedDevice && (
-          <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-            <Card style={{ padding: '28px', marginBottom: '20px' }}>
-              <h3 style={{ color: Colors.onSurface, fontWeight: 700, marginBottom: '20px' }}>Confirm Transfer</h3>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 40px 1fr', gap: '16px', alignItems: 'center', marginBottom: '24px' }}>
-                <div style={{ background: Colors.surfaceContainerHigh, borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                  <span className="material-icons" style={{ fontSize: '32px', color: Colors.primary, display: 'block', marginBottom: '8px' }}>person</span>
-                  <div style={{ fontWeight: 700, color: Colors.onSurface, fontSize: '14px' }}>You (Current Owner)</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <span className="material-icons" style={{ color: Colors.tertiary, fontSize: '28px' }}>arrow_forward</span>
-                </div>
-                <div style={{ background: `${Colors.secondary}18`, borderRadius: '12px', padding: '16px', textAlign: 'center', border: `1px solid ${Colors.secondary}33` }}>
-                  <span className="material-icons" style={{ fontSize: '32px', color: Colors.secondary, display: 'block', marginBottom: '8px' }}>person_add</span>
-                  <div style={{ fontWeight: 700, color: Colors.onSurface, fontSize: '14px' }}>{recipientProfile.full_name}</div>
-                  <div style={{ fontSize: '12px', color: Colors.onSurfaceVariant }}>{recipientEmail}</div>
-                </div>
-              </div>
-
-              <div style={{ background: Colors.surfaceContainerHigh, borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
-                <div style={{ fontWeight: 600, color: Colors.onSurface, marginBottom: '4px' }}>{selectedDevice.make} {selectedDevice.model}</div>
-                <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant }}>Serial: {selectedDevice.serial_number}</div>
-                <div style={{ fontSize: '13px', color: Colors.tertiary, marginTop: '4px', textTransform: 'capitalize' }}>Reason: {reason}</div>
-              </div>
-
-              <div style={{ background: `${Colors.error}12`, border: `1px solid ${Colors.error}33`, borderRadius: '12px', padding: '14px 16px', marginBottom: '24px' }}>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                  <span className="material-icons" style={{ color: Colors.error, fontSize: '18px', flexShrink: 0 }}>warning</span>
-                  <p style={{ color: Colors.onSurface, fontSize: '13px', margin: 0, lineHeight: 1.6 }}>
-                    This action is <strong>irreversible</strong>. Once transferred, the new owner will have full control of this device on LOQIT. Make sure you trust the recipient.
+                <div style={{
+                  display: 'flex', gap: '10px', marginTop: '18px',
+                  background: '#FFFBEB', border: '1px solid #FDE68A',
+                  borderRadius: '12px', padding: '13px 15px',
+                }}>
+                  <ShieldAlert size={16} color={TONE.amber} style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <p style={{ fontSize: '12px', color: '#92400E', margin: 0, lineHeight: 1.6 }}>
+                    This is immediate and cannot be undone from your account. Once transferred, the
+                    device leaves your dashboard and its protection settings and history belong to
+                    the new owner.
                   </p>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <Button variant="outline" fullWidth onClick={() => { setStep(1); setRecipientProfile(null) }}>Back</Button>
-                <Button fullWidth onClick={initiateTransfer} loading={loading} icon="swap_horiz">
-                  Confirm Transfer
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        )}
+                {transferError && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '10px 14px', borderRadius: '12px', marginTop: '12px',
+                    background: '#FEF2F2', border: '1px solid #FECACA',
+                    color: '#991B1B', fontSize: '12.5px',
+                  }}>
+                    <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                    {transferError}
+                  </div>
+                )}
 
-        {/* Step 3: Done */}
-        {step === 3 && (
-          <motion.div key="step3" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-            <Card style={{ padding: '48px', textAlign: 'center' }}>
-              <motion.div animate={{ scale: [0.5, 1.2, 1] }} transition={{ duration: 0.6 }}>
-                <span className="material-icons" style={{ fontSize: '72px', color: Colors.secondary, display: 'block', marginBottom: '20px' }}>check_circle</span>
-              </motion.div>
-              <h2 style={{ color: Colors.onSurface, fontWeight: 800, fontSize: '24px', marginBottom: '12px' }}>Transfer Complete!</h2>
-              <p style={{ color: Colors.onSurfaceVariant, fontSize: '15px', lineHeight: 1.7, marginBottom: '32px' }}>
-                <strong>{selectedDevice?.make} {selectedDevice?.model}</strong> has been transferred to <strong>{recipientProfile?.full_name}</strong>. The device is now under their account.
-              </p>
-              <Button onClick={() => navigate('/devices')} fullWidth icon="devices">Back to My Devices</Button>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+                  <Button icon={ArrowLeftRight} onClick={initiateTransfer} disabled={loading}>
+                    {loading ? 'Transferring…' : 'Confirm transfer'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => { setStep(1); setRecipientProfile(null) }}>Back</Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <EmptyState
+              icon={CheckCircle2}
+              title="Transfer complete"
+              body={`${selectedDevice?.make} ${selectedDevice?.model} now belongs to ${recipientProfile?.full_name || recipientEmail}. It has been removed from your dashboard.`}
+              action={<Button onClick={() => navigate('/devices')}>Back to devices</Button>}
+            />
+          )}
+        </Card>
+
+        {/* Side notes */}
+        <Card>
+          <CardHeader title="Before you transfer" subtitle="Worth checking first" />
+          <div style={{ padding: '0 24px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {[
+              { icon: UserSearch, tone: TONE.blue, title: 'The recipient needs an account', body: 'They have to register with LOQIT before the device can be handed over.' },
+              { icon: ShieldAlert, tone: TONE.amber, title: 'Lost devices cannot move', body: 'A device marked lost or stolen must be recovered before transferring.' },
+              { icon: ArrowLeftRight, tone: TONE.green, title: 'Ownership moves immediately', body: 'The LOQIT key stays with the hardware, but control passes to the new owner.' },
+            ].map(item => (
+              <div key={item.title} style={{ display: 'flex', gap: '11px' }}>
+                <IconTile icon={item.icon} tone={item.tone} size={32} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>{item.title}</div>
+                  <p style={{ fontSize: '12px', color: C.muted, margin: '2px 0 0', lineHeight: 1.55 }}>{item.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </Page>
   )
 }
