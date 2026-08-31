@@ -1,22 +1,24 @@
-import { CSSProperties, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Colors } from '../lib/colors'
+import {
+  User, Mail, Phone, Smartphone, ShieldCheck, FileWarning, Pencil,
+  KeyRound, LogOut, Check, AlertCircle, BadgeCheck,
+} from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 import { useDevices } from '../hooks/useDevices'
-import { Card } from '../components/Card'
-import { Button } from '../components/Button'
-import { Input } from '../components/Input'
-
+import {
+  C, TONE, FONT, Page, PageHeader, Card, CardHeader, Button, Badge,
+  SummaryCard, Field, inputStyle,
+} from '../components/crm'
 
 export function ProfilePage() {
   const navigate = useNavigate()
   const { profile, user, signOut, refreshProfile } = useAuth()
   const { devices } = useDevices()
   const [reportsCount, setReportsCount] = useState(0)
-  
+
   const [isEditing, setIsEditing] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -57,9 +59,9 @@ export function ProfilePage() {
     if (error) {
       setMessage({ type: 'error', text: error.message })
     } else {
-      setMessage({ type: 'success', text: 'Profile updated successfully!' })
+      setMessage({ type: 'success', text: 'Profile updated.' })
       await refreshProfile()
-      setTimeout(() => setIsEditing(false), 1500)
+      setTimeout(() => setIsEditing(false), 1200)
     }
     setLoading(false)
   }
@@ -72,9 +74,9 @@ export function ProfilePage() {
       setMessage({ type: 'error', text: 'Passwords do not match' })
       return
     }
-
-    if (newPassword.length < 6) {
-      setMessage({ type: 'error', text: 'Password must be at least 6 characters' })
+    // The API enforces 8 characters; match it here so the error arrives sooner.
+    if (newPassword.length < 8) {
+      setMessage({ type: 'error', text: 'Password must be at least 8 characters' })
       return
     }
 
@@ -84,7 +86,7 @@ export function ProfilePage() {
     if (error) {
       setMessage({ type: 'error', text: error.message })
     } else {
-      setMessage({ type: 'success', text: 'Password changed successfully!' })
+      setMessage({ type: 'success', text: 'Password changed. Signing you out of other devices.' })
       setTimeout(() => setIsChangingPassword(false), 1500)
       setNewPassword('')
       setConfirmPassword('')
@@ -97,164 +99,187 @@ export function ProfilePage() {
     navigate('/login')
   }
 
-  const getInitials = () => {
+  const initials = (() => {
     const name = profile?.full_name || 'U'
     const parts = name.split(' ')
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
     return name.slice(0, 2).toUpperCase()
-  }
+  })()
+
+  const roleLabel = profile?.role === 'police' ? 'Police Officer'
+    : profile?.role === 'admin' ? 'Admin' : 'Civilian'
+
+  const protectedCount = devices.filter(d => d.status === 'registered').length
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1200px', margin: '0 auto' }}>
+    <Page>
+      <PageHeader title="Profile" subtitle="Your account details and security settings" />
 
-      {/* Page Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '32px', padding: '24px', backgroundColor: Colors.surfaceContainer, borderRadius: '12px', border: `1px solid ${Colors.outlineVariant}` }}>
-        <div style={{ position: 'relative' }}>
+      {/* Identity */}
+      <Card style={{ padding: '22px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{
-            width: '72px', height: '72px', borderRadius: '18px', flexShrink: 0,
-            background: `linear-gradient(135deg, ${Colors.primary} 0%, ${Colors.accent} 100%)`,
+            width: '56px', height: '56px', borderRadius: '999px', flexShrink: 0,
+            background: C.primary, color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '28px', fontWeight: 800, color: 'white',
-            boxShadow: `0 4px 16px ${Colors.primary}40`,
+            fontSize: '18px', fontWeight: 600,
           }}>
-            {getInitials()}
+            {initials}
           </div>
-        </div>
-        <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: '22px', fontWeight: 700, color: Colors.onSurface, margin: '0 0 4px' }}>
-            {profile?.full_name || 'User Profile'}
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', color: Colors.onSurfaceVariant, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span className="material-icons" style={{ fontSize: '16px' }}>alternate_email</span>
-              {user?.email}
-            </span>
-            <span style={{ fontSize: '12px', color: Colors.primary, backgroundColor: `${Colors.primary}15`, padding: '3px 10px', borderRadius: '10px', fontWeight: 600 }}>
-              Member since {new Date(profile?.created_at || Date.now()).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
-            </span>
-          </div>
-        </div>
 
-        {/* Compact Stats */}
-        <div style={{ display: 'flex', gap: '32px' }}>
-          {[
-            { label: 'Devices', value: devices.length, icon: 'devices', color: Colors.primary },
-            { label: 'Reports', value: reportsCount, icon: 'security', color: Colors.error },
-            { label: 'Protected', value: devices.filter(d => d.status === 'registered').length, icon: 'verified_user', color: Colors.secondary },
-          ].map((s) => (
-            <div key={s.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: '11px', color: Colors.onSurfaceVariant, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '4px' }}>{s.label}</div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: C.heading, margin: 0 }}>
+                {profile?.full_name || 'LOQIT User'}
+              </h2>
+              <Badge tone={profile?.role === 'civilian' ? TONE.blue : TONE.green}>{roleLabel}</Badge>
+              {profile?.aadhaar_verified && (
+                <Badge tone={TONE.green}>Aadhaar verified</Badge>
+              )}
             </div>
-          ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '6px', flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: C.label }}>
+                <Mail size={14} color={C.muted} /> {user?.email || '—'}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: C.label }}>
+                <Phone size={14} color={C.muted} /> {profile?.phone_number || 'No phone added'}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+            {!isEditing && <Button variant="ghost" icon={Pencil} onClick={() => { setIsEditing(true); setMessage({ type: '', text: '' }) }}>Edit</Button>}
+            <Button variant="ghost" icon={LogOut} onClick={handleSignOut}>Sign out</Button>
+          </div>
         </div>
+      </Card>
+
+      {/* Stats */}
+      <div className="crm-c3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
+        <SummaryCard label="Devices Registered" value={devices.length} icon={Smartphone} tone={TONE.blue} />
+        <SummaryCard label="Currently Protected" value={protectedCount} icon={ShieldCheck} tone={TONE.green} />
+        <SummaryCard label="Lost Reports Filed" value={reportsCount} icon={FileWarning} tone={reportsCount ? TONE.amber : TONE.grey} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(450px, 100%), 1fr))', gap: '40px' }}>
-        
-        {/* Profile Info Section */}
-        <motion.section initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: `${Colors.primary}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span className="material-icons" style={{ color: Colors.primary }}>person</span>
-            </div>
-            <h2 style={{ fontSize: '24px', fontWeight: 800, margin: 0 }}>Information</h2>
-          </div>
-          
-          <Card variant="elevated" style={{ padding: '32px', borderRadius: '24px', border: `1px solid ${Colors.outlineVariant}` }}>
-            <AnimatePresence mode="wait">
-              {message.text && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ 
-                  padding: '16px', borderRadius: '12px', marginBottom: '24px',
-                  background: message.type === 'error' ? `${Colors.error}15` : `${Colors.secondary}15`,
-                  color: message.type === 'error' ? Colors.error : Colors.secondary,
-                  border: `1px solid ${message.type === 'error' ? Colors.error : Colors.secondary}30`,
-                  display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', fontWeight: 600
-                }}>
-                  <span className="material-icons" style={{ fontSize: '20px' }}>{message.type === 'error' ? 'error' : 'check_circle'}</span>
-                  {message.text}
-                </motion.div>
-              )}
-            </AnimatePresence>
+      {/* Feedback */}
+      {message.text && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '9px',
+          padding: '11px 16px', borderRadius: '12px', marginBottom: '20px',
+          fontSize: '13px', fontWeight: 500, fontFamily: FONT,
+          background: message.type === 'error' ? '#FEF2F2' : '#ECFDF5',
+          border: `1px solid ${message.type === 'error' ? '#FECACA' : '#A7F3D0'}`,
+          color: message.type === 'error' ? '#991B1B' : '#065F46',
+        }}>
+          {message.type === 'error' ? <AlertCircle size={15} /> : <Check size={15} />}
+          {message.text}
+        </div>
+      )}
 
+      <div className="crm-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '20px', alignItems: 'start' }}>
+
+        {/* Account details */}
+        <Card>
+          <CardHeader title="Account Information" subtitle="How you appear across LOQIT" />
+          <div style={{ padding: '0 24px 22px' }}>
             {isEditing ? (
-              <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <Input label="FULL NAME" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-                <Input label="PHONE NUMBER" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 890" />
-                <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                  <Button type="submit" loading={loading} icon="save" fullWidth>SAVE</Button>
-                  <Button variant="ghost" onClick={() => setIsEditing(false)} style={{ border: `1.5px solid ${Colors.outlineVariant}` }}>CANCEL</Button>
+              <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <Field label="Full name">
+                  <input className="crm-input" style={inputStyle} value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                </Field>
+                <Field label="Phone number" hint="Used so a finder can be connected to you without revealing your number.">
+                  <input className="crm-input" style={inputStyle} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91…" />
+                </Field>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <Button type="submit" icon={Check} disabled={loading}>{loading ? 'Saving…' : 'Save changes'}</Button>
+                  <Button variant="ghost" onClick={() => { setIsEditing(false); setMessage({ type: '', text: '' }) }}>Cancel</Button>
                 </div>
               </form>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${Colors.outlineVariant}`, paddingBottom: '16px' }}>
-                  <span style={{ color: Colors.onSurfaceVariant, fontWeight: 600 }}>Name</span>
-                  <span style={{ color: Colors.onSurface, fontWeight: 700 }}>{profile?.full_name || 'N/A'}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${Colors.outlineVariant}`, paddingBottom: '16px' }}>
-                  <span style={{ color: Colors.onSurfaceVariant, fontWeight: 600 }}>Email</span>
-                  <span style={{ color: Colors.onSurface, fontWeight: 700 }}>{user?.email}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${Colors.outlineVariant}`, paddingBottom: '16px' }}>
-                  <span style={{ color: Colors.onSurfaceVariant, fontWeight: 600 }}>Phone</span>
-                  <span style={{ color: Colors.onSurface, fontWeight: 700 }}>{profile?.phone_number || 'Not Set'}</span>
-                </div>
-                <Button onClick={() => setIsEditing(true)} icon="edit" fullWidth variant="ghost" style={{ border: `1.5px solid ${Colors.primary}`, color: Colors.primary }}>
-                    EDIT PROFILE
-                </Button>
+              <div style={{ background: C.tile, border: `1px solid ${C.tileBorder}`, borderRadius: '12px', overflow: 'hidden' }}>
+                {[
+                  { icon: User, label: 'Full name', value: profile?.full_name || '—' },
+                  { icon: Mail, label: 'Email', value: user?.email || '—' },
+                  { icon: Phone, label: 'Phone', value: profile?.phone_number || '—' },
+                  { icon: BadgeCheck, label: 'Role', value: roleLabel },
+                  { icon: ShieldCheck, label: 'Aadhaar', value: profile?.aadhaar_verified ? 'Verified' : 'Not verified' },
+                ].map((row, i, arr) => (
+                  <div key={row.label} style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '11px 14px',
+                    borderBottom: i < arr.length - 1 ? `1px solid ${C.tileBorder}` : 'none',
+                  }}>
+                    <row.icon size={15} color={C.muted} style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '12px', color: C.label, flex: 1 }}>{row.label}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 500, color: C.heading, textAlign: 'right', wordBreak: 'break-all' }}>
+                      {row.value}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
-          </Card>
-        </motion.section>
+          </div>
+        </Card>
 
-        {/* Security & Actions Section */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
-            <motion.section initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: `${Colors.error}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span className="material-icons" style={{ color: Colors.error }}>security</span>
-                    </div>
-                    <h2 style={{ fontSize: '24px', fontWeight: 800, margin: 0 }}>Security</h2>
+        {/* Security */}
+        <Card>
+          <CardHeader title="Security" subtitle="Password and session controls" />
+          <div style={{ padding: '0 24px 22px' }}>
+            {isChangingPassword ? (
+              <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <Field label="New password" hint="At least 8 characters.">
+                  <input className="crm-input" style={inputStyle} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+                </Field>
+                <Field label="Confirm new password">
+                  <input className="crm-input" style={inputStyle} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                </Field>
+                <div style={{
+                  background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px',
+                  padding: '11px 14px', fontSize: '12px', color: '#92400E', lineHeight: 1.55,
+                }}>
+                  Changing your password signs you out on every other device.
                 </div>
-                
-                <Card variant="elevated" style={{ padding: '32px', borderRadius: '24px', border: `1px solid ${Colors.outlineVariant}` }}>
-                    {isChangingPassword ? (
-                        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                            <Input label="NEW PASSWORD" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-                            <Input label="CONFIRM PASSWORD" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                                <Button type="submit" loading={loading} variant="primary" icon="lock" fullWidth>UPDATE</Button>
-                                <Button variant="ghost" onClick={() => setIsChangingPassword(false)} style={{ border: `1.5px solid ${Colors.outlineVariant}` }}>CANCEL</Button>
-                            </div>
-                        </form>
-                    ) : (
-                        <div style={{ textAlign: 'center' }}>
-                            <p style={{ color: Colors.onSurfaceVariant, marginBottom: '24px', fontSize: '14px', lineHeight: 1.6 }}>Keep your account secure by using a strong, unique password.</p>
-                            <Button onClick={() => setIsChangingPassword(true)} icon="password" variant="ghost" style={{ border: `1.5px solid ${Colors.outlineVariant}` }} fullWidth>
-                                CHANGE PASSWORD
-                            </Button>
-                        </div>
-                    )}
-                </Card>
-            </motion.section>
-
-            <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: `rgba(255,255,255,0.05)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span className="material-icons" style={{ color: Colors.onSurfaceVariant }}>settings</span>
-                    </div>
-                    <h2 style={{ fontSize: '24px', fontWeight: 800, margin: 0 }}>Preferences</h2>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button type="submit" icon={Check} disabled={loading}>{loading ? 'Updating…' : 'Update password'}</Button>
+                  <Button variant="ghost" onClick={() => { setIsChangingPassword(false); setMessage({ type: '', text: '' }) }}>Cancel</Button>
                 </div>
-                <Card variant="elevated" style={{ padding: '24px', borderRadius: '24px', border: `1.5px dashed ${Colors.outlineVariant}`, background: 'transparent' }}>
-                    <Button onClick={handleSignOut} variant="danger" icon="logout" fullWidth style={{ borderRadius: '16px' }}>
-                        SIGN OUT
-                    </Button>
-                </Card>
-            </motion.section>
-        </div>
+              </form>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  padding: '14px', background: C.tile,
+                  border: `1px solid ${C.tileBorder}`, borderRadius: '12px',
+                }}>
+                  <KeyRound size={17} color={C.primary} style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>Password</div>
+                    <div style={{ fontSize: '12px', color: C.muted, marginTop: '1px' }}>
+                      Set a new password for this account
+                    </div>
+                  </div>
+                  <Button variant="ghost" onClick={() => { setIsChangingPassword(true); setMessage({ type: '', text: '' }) }}>Change</Button>
+                </div>
 
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  padding: '14px', background: C.tile,
+                  border: `1px solid ${C.tileBorder}`, borderRadius: '12px',
+                }}>
+                  <LogOut size={17} color={TONE.red} style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>Sign out</div>
+                    <div style={{ fontSize: '12px', color: C.muted, marginTop: '1px' }}>
+                      End this session on this browser
+                    </div>
+                  </div>
+                  <Button variant="ghost" onClick={handleSignOut}>Sign out</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
-    </div>
+    </Page>
   )
 }

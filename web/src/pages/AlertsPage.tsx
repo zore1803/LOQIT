@@ -1,9 +1,14 @@
-import { CSSProperties, useEffect, useState, useCallback } from 'react'
-import { Colors } from '../lib/colors'
+import { useEffect, useState, useCallback } from 'react'
+import {
+  Bell, BellOff, MapPin, AlertTriangle, MessageSquare, CheckCheck, Trash2, Circle,
+} from 'lucide-react'
+import { LucideIcon } from 'lucide-react'
 import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
-import { Card } from '../components/Card'
-import { Button } from '../components/Button'
+import {
+  C, TONE, FONT, Page, PageHeader, Card, Button, Skeleton,
+  EmptyState, SummaryCard, IconTile,
+} from '../components/crm'
 
 type Notification = {
   id: string
@@ -14,271 +19,197 @@ type Notification = {
   created_at: string
 }
 
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'unread', label: 'Unread' },
+] as const
+
+type FilterKey = typeof FILTERS[number]['key']
+
+function meta(type: string): { icon: LucideIcon; tone: string; label: string } {
+  switch (type) {
+    case 'device_found': return { icon: MapPin, tone: TONE.green, label: 'Device found' }
+    case 'device_lost': return { icon: AlertTriangle, tone: TONE.red, label: 'Device lost' }
+    case 'chat_message': return { icon: MessageSquare, tone: TONE.blue, label: 'Message' }
+    case 'remote_lock': return { icon: AlertTriangle, tone: TONE.amber, label: 'Remote lock' }
+    default: return { icon: Bell, tone: TONE.grey, label: 'Notification' }
+  }
+}
+
+function timeAgo(date: string) {
+  const diff = Date.now() - new Date(date).getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+}
+
 export function AlertsPage() {
   const { user } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<FilterKey>('all')
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return
-
     const { data, error } = await db
       .from('notifications')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-
-    if (!error && data) {
-      setNotifications(data)
-    }
+    if (!error && data) setNotifications(data)
     setLoading(false)
   }, [user])
 
-  useEffect(() => {
-    fetchNotifications()
-  }, [fetchNotifications])
+  useEffect(() => { fetchNotifications() }, [fetchNotifications])
 
   const markAsRead = async (id: string) => {
     await db.from('notifications').update({ is_read: true }).eq('id', id)
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
+    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, is_read: true } : n)))
   }
 
   const markAllAsRead = async () => {
     if (!user) return
     await db.from('notifications').update({ is_read: true }).eq('user_id', user.id)
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
   }
 
   const deleteNotification = async (id: string) => {
     await db.from('notifications').delete().eq('id', id)
-    setNotifications((prev) => prev.filter((n) => n.id !== id))
+    setNotifications(prev => prev.filter(n => n.id !== id))
   }
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'device_found':
-        return { icon: 'location_on', color: Colors.secondary }
-      case 'device_lost':
-        return { icon: 'warning', color: Colors.error }
-      case 'chat_message':
-        return { icon: 'chat', color: Colors.primary }
-      default:
-        return { icon: 'notifications', color: Colors.tertiary }
-    }
-  }
+  const unread = notifications.filter(n => !n.is_read).length
+  const today = notifications.filter(n =>
+    new Date(n.created_at).toDateString() === new Date().toDateString()).length
 
-  const getTimeAgo = (date: string) => {
-    const diff = Date.now() - new Date(date).getTime()
-    const minutes = Math.floor(diff / 60000)
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
-  }
-
-  const containerStyle: CSSProperties = {
-    padding: '40px',
-    maxWidth: '1000px',
-    margin: '0 auto',
-  }
-
-  const headerStyle: CSSProperties = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '40px',
-    background: `linear-gradient(135deg, ${Colors.tertiary}10 0%, transparent 100%)`,
-    padding: '28px 32px',
-    borderRadius: '20px',
-    border: `1px solid ${Colors.tertiary}20`,
-  }
-
-  const titleStyle: CSSProperties = {
-    fontSize: '32px',
-    fontWeight: 700,
-    color: Colors.onSurface,
-    letterSpacing: '-0.5px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  }
-
-  const notificationStyle = (isRead: boolean): CSSProperties => ({
-    display: 'flex',
-    gap: '20px',
-    padding: '24px',
-    backgroundColor: isRead ? Colors.surfaceContainerLow : Colors.surfaceContainer,
-    borderRadius: '16px',
-    marginBottom: '16px',
-    opacity: isRead ? 0.7 : 1,
-    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    border: `1px solid ${isRead ? Colors.outlineVariant : Colors.primary}30`,
-    boxShadow: isRead ? 'none' : `0 2px 8px ${Colors.primary}10`,
-  })
-
-  const emptyStyle: CSSProperties = {
-    textAlign: 'center',
-    padding: '80px 40px',
-    color: Colors.onSurfaceVariant,
-    background: `linear-gradient(135deg, ${Colors.tertiary}08 0%, transparent 100%)`,
-  }
-
-  const unreadCount = notifications.filter((n) => !n.is_read).length
-
-  if (loading) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ textAlign: 'center', padding: '100px', color: Colors.onSurfaceVariant }}>
-          <span className="material-icons" style={{ fontSize: '48px', animation: 'spin 1s linear infinite', marginBottom: '16px', display: 'block' }}>
-            sync
-          </span>
-          <div style={{ fontSize: '18px', fontWeight: 600 }}>Loading notifications...</div>
-        </div>
-      </div>
-    )
-  }
+  const visible = filter === 'unread' ? notifications.filter(n => !n.is_read) : notifications
 
   return (
-    <div style={containerStyle}>
-      <header style={headerStyle}>
-        <div>
-          <h1 style={titleStyle}>
-            <span className="material-icons" style={{ fontSize: '36px', color: Colors.tertiary }}>
-              notifications_active
-            </span>
-            Notifications
-          </h1>
-          {unreadCount > 0 && (
-            <span style={{ color: Colors.onSurfaceVariant, fontSize: '15px', marginTop: '8px', display: 'block', fontWeight: 600 }}>
-              {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-        {unreadCount > 0 && (
-          <Button variant="ghost" size="small" onClick={markAllAsRead} icon="done_all" style={{ border: `2px solid ${Colors.outlineVariant}` }}>
-            Mark all read
-          </Button>
-        )}
-      </header>
+    <Page>
+      <PageHeader
+        title="Alerts"
+        subtitle="Everything LOQIT has flagged on your account"
+        actions={
+          unread > 0
+            ? <Button variant="ghost" icon={CheckCheck} onClick={markAllAsRead}>Mark all as read</Button>
+            : undefined
+        }
+      />
 
-      {notifications.length === 0 ? (
-        <Card variant="elevated" style={emptyStyle}>
-          <span
-            className="material-icons"
-            style={{ fontSize: '96px', color: Colors.tertiary, marginBottom: '24px', display: 'block', opacity: 0.5 }}
-          >
-            notifications_none
-          </span>
-          <h2 style={{ color: Colors.onSurface, marginBottom: '12px', fontSize: '28px', fontWeight: 700 }}>
-            All caught up!
-          </h2>
-          <p style={{ fontSize: '16px', maxWidth: '500px', margin: '0 auto' }}>
-            You'll see alerts here when someone finds your device or sends you a message
-          </p>
-        </Card>
-      ) : (
-        <div>
-          {notifications.map((notification) => {
-            const { icon, color } = getIcon(notification.type)
-            return (
-              <div
-                key={notification.id}
-                style={notificationStyle(notification.is_read)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = Colors.surfaceContainerHighest
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = notification.is_read
-                    ? Colors.surfaceContainerLow
-                    : Colors.surfaceContainerHigh
-                }}
-              >
-                <div
+      <div className="crm-c3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
+        <SummaryCard label="Total Alerts" value={notifications.length} icon={Bell} tone={TONE.blue} loading={loading} />
+        <SummaryCard label="Unread" value={unread} icon={Circle} tone={unread ? TONE.amber : TONE.grey} loading={loading} note={unread ? 'needs review' : 'all caught up'} />
+        <SummaryCard label="Today" value={today} icon={CheckCheck} tone={TONE.green} loading={loading} />
+      </div>
+
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 20px' }}>
+          <div style={{ display: 'flex', gap: '4px', background: C.tile, border: `1px solid ${C.tileBorder}`, borderRadius: '999px', padding: '3px' }}>
+            {FILTERS.map(f => {
+              const active = filter === f.key
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
                   style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '14px',
-                    background: `linear-gradient(135deg, ${color}30 0%, ${color}10 100%)`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    border: `2px solid ${color}40`,
+                    padding: '6px 14px', borderRadius: '999px', cursor: 'pointer',
+                    fontSize: '12px', fontWeight: 600, fontFamily: FONT,
+                    background: active ? C.card : 'transparent',
+                    color: active ? C.primary : C.label,
+                    border: `1px solid ${active ? C.tileBorder : 'transparent'}`,
                   }}
                 >
-                  <span className="material-icons" style={{ color, fontSize: '28px' }}>
-                    {icon}
-                  </span>
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                    }}
-                  >
-                    <h3
-                      style={{
-                        color: Colors.onSurface,
-                        fontSize: '18px',
-                        fontWeight: notification.is_read ? 500 : 700,
-                        marginBottom: '6px',
-                        letterSpacing: '-0.2px',
-                      }}
-                    >
-                      {notification.title}
-                    </h3>
-                    <span style={{ color: Colors.onSurfaceVariant, fontSize: '13px', fontWeight: 600 }}>
-                      {getTimeAgo(notification.created_at)}
-                    </span>
-                  </div>
-                  <p style={{ color: Colors.onSurfaceVariant, fontSize: '15px', lineHeight: '1.5' }}>
-                    {notification.body}
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {!notification.is_read && (
-                    <button
-                      onClick={() => markAsRead(notification.id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: Colors.primary,
-                        cursor: 'pointer',
-                        padding: '8px',
-                      }}
-                      title="Mark as read"
-                    >
-                      <span className="material-icons" style={{ fontSize: '20px' }}>
-                        done
-                      </span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => deleteNotification(notification.id)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: Colors.error,
-                      cursor: 'pointer',
-                      padding: '8px',
-                    }}
-                    title="Delete"
-                  >
-                    <span className="material-icons" style={{ fontSize: '20px' }}>
-                      delete
-                    </span>
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+                  {f.label}{f.key === 'unread' && unread > 0 ? ` (${unread})` : ''}
+                </button>
+              )
+            })}
+          </div>
+          <span style={{ fontSize: '12px', color: C.muted, fontWeight: 500, marginLeft: 'auto' }}>
+            {loading ? '—' : `${visible.length} shown`}
+          </span>
         </div>
-      )}
-    </div>
+
+        {loading ? (
+          <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Skeleton width={34} height={34} radius={10} />
+                <div style={{ flex: 1 }}>
+                  <Skeleton width="30%" height={13} />
+                  <Skeleton width="55%" height={11} style={{ marginTop: '6px' }} />
+                </div>
+                <Skeleton width={54} height={11} />
+              </div>
+            ))}
+          </div>
+        ) : visible.length === 0 ? (
+          <EmptyState
+            icon={BellOff}
+            title={filter === 'unread' ? 'Nothing unread' : 'No alerts yet'}
+            body={filter === 'unread'
+              ? "You're all caught up."
+              : 'When a device is reported lost, spotted by the mesh, or messaged about, it shows up here.'}
+            action={filter === 'unread'
+              ? <Button variant="ghost" onClick={() => setFilter('all')}>View all alerts</Button>
+              : undefined}
+          />
+        ) : (
+          <div style={{ borderTop: `1px solid ${C.border}` }}>
+            {visible.map((n, i) => {
+              const m = meta(n.type)
+              return (
+                <div
+                  key={n.id}
+                  className="crm-row"
+                  onClick={() => !n.is_read && markAsRead(n.id)}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '12px',
+                    padding: '14px 20px',
+                    borderBottom: i < visible.length - 1 ? `1px solid ${C.border}` : 'none',
+                    cursor: n.is_read ? 'default' : 'pointer',
+                    background: n.is_read ? undefined : 'rgba(39,118,234,.03)',
+                  }}
+                >
+                  <IconTile icon={m.icon} tone={m.tone} />
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '13px', fontWeight: n.is_read ? 500 : 700, color: C.heading }}>
+                        {n.title}
+                      </span>
+                      {!n.is_read && (
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: C.primary, flexShrink: 0 }} />
+                      )}
+                    </div>
+                    <p style={{ fontSize: '12px', color: C.label, margin: '3px 0 0', lineHeight: 1.5 }}>{n.body}</p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <span style={{ fontSize: '11px', color: C.muted, whiteSpace: 'nowrap' }}>{timeAgo(n.created_at)}</span>
+                    <button
+                      title="Delete alert"
+                      onClick={(e) => { e.stopPropagation(); deleteNotification(n.id) }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: '28px', height: '28px', borderRadius: '9px',
+                        background: C.card, border: `1px solid ${C.border}`,
+                        color: C.muted, cursor: 'pointer',
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Card>
+    </Page>
   )
 }
