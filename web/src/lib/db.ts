@@ -20,18 +20,38 @@ async function getToken(): Promise<string | null> {
   return getAccessToken()
 }
 
+// A request that never settles used to leave the UI on skeletons forever
+// (an asleep or unreachable API). Fail loudly instead so callers can show a
+// retry. Render's free tier cold-starts in ~30-60s, so allow for that.
+const REQUEST_TIMEOUT_MS = 60_000
+
 async function post(path: string, body: unknown): Promise<QueryResult> {
   const token = await getToken()
   if (!token) return { data: null, error: { message: 'Not signed in' } }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
     const res = await fetch(`${API_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
+      signal: controller.signal,
     })
+    if (!res.ok) {
+      return { data: null, error: { message: `Server returned ${res.status}` } }
+    }
     return (await res.json()) as QueryResult
   } catch (err) {
-    return { data: null, error: { message: err instanceof Error ? err.message : 'Network error' } }
+    const message =
+      err instanceof DOMException && err.name === 'AbortError'
+        ? 'The server took too long to respond. It may be starting up — try again.'
+        : err instanceof Error
+          ? err.message
+          : 'Network error'
+    return { data: null, error: { message } }
+  } finally {
+    clearTimeout(timer)
   }
 }
 

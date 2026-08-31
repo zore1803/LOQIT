@@ -28,9 +28,40 @@ export const globalStyles = `
     --color-outline: #94a3b8;
     --color-outlineVariant: #cbd5e1;
     --logo-filter: brightness(1) saturate(1);
+
+    /* ── DataCircles CRM design tokens ────────────────────────────────────
+       Matched to the CRM frontend so LOQIT's dashboard reads as the same
+       product: white cards on a light page, hairline #F2F2F7 borders,
+       20px radii, muted grey labels above near-black values. */
+    --crm-page: #F7F8FA;
+    --crm-card: #ffffff;
+    --crm-border: #F2F2F7;
+    --crm-tile: #F9FAFB;
+    --crm-tile-border: #E5E7EB;
+    --crm-heading: #111216;
+    --crm-label: #6B7280;
+    --crm-muted: #9CA3AF;
+    --crm-primary: #2776EA;
+    --crm-primary-hover: #1F63C8;
+    --crm-chrome: #EBEDFF;
+    --crm-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
   }
 
   :root.dark-mode {
+    /* CRM tokens, dark equivalents */
+    --crm-page: #0d0f14;
+    --crm-card: #171a21;
+    --crm-border: #262a33;
+    --crm-tile: #1d212a;
+    --crm-tile-border: #2d323d;
+    --crm-heading: #f3f4f6;
+    --crm-label: #9ca3af;
+    --crm-muted: #6b7280;
+    --crm-primary: #4b8ff0;
+    --crm-primary-hover: #6ba3f5;
+    --crm-chrome: #171a21;
+    --crm-shadow: 0 1px 2px 0 rgba(0,0,0,0.4);
+
     --color-background: #111318;
     --color-surface: #111318;
     --color-surfaceDim: #111318;
