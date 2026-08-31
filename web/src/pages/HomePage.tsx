@@ -212,7 +212,7 @@ export function HomePage() {
         }
       `}</style>
 
-      <div style={{ padding: '28px 32px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div style={{ padding: '24px 28px', maxWidth: '1920px', margin: '0 auto' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
@@ -307,7 +307,7 @@ export function HomePage() {
         </div>
 
         {/* Main grid */}
-        <div className="crm-main" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px', alignItems: 'start' }}>
+        <div className="crm-main" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '20px', alignItems: 'start' }}>
 
           {/* Recent devices */}
           <div style={{ ...card, overflow: 'hidden' }}>

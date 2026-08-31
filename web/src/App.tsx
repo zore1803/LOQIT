@@ -115,7 +115,9 @@ function AppLayout({ children, isPolice, fullHeight }: { children: React.ReactNo
     flex: 1,
     minWidth: 0,
     overflow: fullHeight ? 'hidden' : 'auto',
-    backgroundColor: Colors.background,
+    // Light CRM page ground, so the sidebar's pale chrome sits against it
+    // rather than against the old dark surface.
+    backgroundColor: 'var(--crm-page)',
     position: 'relative',
     display: 'flex',
     flexDirection: 'column',

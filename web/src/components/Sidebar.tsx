@@ -1,20 +1,41 @@
-import { CSSProperties, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Colors } from '../lib/colors'
+import {
+  Home, Smartphone, PlusCircle, MapPin, Shield, ArrowLeftRight,
+  MessageSquare, Bell, User, Settings, LogOut, LucideIcon,
+} from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { db } from '../lib/db'
 
-const navItems = [
-  { path: '/dashboard', icon: 'home', label: 'Home' },
-  { path: '/devices', icon: 'devices', label: 'Devices' },
-  { path: '/add-device', icon: 'add_circle', label: 'Add Device' },
-  { path: '/map', icon: 'map', label: 'Live Map' },
-  { path: '/anti-theft', icon: 'security', label: 'Anti-Theft' },
-  { path: '/transfer-ownership', icon: 'swap_horiz', label: 'Transfer' },
-  { path: '/chat', icon: 'chat', label: 'Chat', showBadge: true },
-  { path: '/alerts', icon: 'notifications', label: 'Alerts' },
-  { path: '/profile', icon: 'person', label: 'Profile' },
-  { path: '/settings', icon: 'settings', label: 'Settings' },
+/**
+ * Sidebar in the DataCircles CRM's chrome style: a pale --crm-chrome wash, a
+ * white pill for the active item, and lucide icons.
+ */
+const C = {
+  chrome: 'var(--crm-chrome)',
+  card: 'var(--crm-card)',
+  tileBorder: 'var(--crm-tile-border)',
+  heading: 'var(--crm-heading)',
+  label: 'var(--crm-label)',
+  muted: 'var(--crm-muted)',
+  primary: 'var(--crm-primary)',
+}
+
+const FONT = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif"
+
+type NavItem = { path: string; icon: LucideIcon; label: string; showBadge?: boolean }
+
+const navItems: NavItem[] = [
+  { path: '/dashboard', icon: Home, label: 'Home' },
+  { path: '/devices', icon: Smartphone, label: 'Devices' },
+  { path: '/add-device', icon: PlusCircle, label: 'Add Device' },
+  { path: '/map', icon: MapPin, label: 'Live Map' },
+  { path: '/anti-theft', icon: Shield, label: 'Anti-Theft' },
+  { path: '/transfer-ownership', icon: ArrowLeftRight, label: 'Transfer' },
+  { path: '/chat', icon: MessageSquare, label: 'Chat', showBadge: true },
+  { path: '/alerts', icon: Bell, label: 'Alerts' },
+  { path: '/profile', icon: User, label: 'Profile' },
+  { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
 export function Sidebar() {
@@ -22,7 +43,6 @@ export function Sidebar() {
   const location = useLocation()
   const { user, profile, signOut } = useAuth()
   const [unreadCount, setUnreadCount] = useState(0)
-  const [hoveredPath, setHoveredPath] = useState<string | null>(null)
 
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(path + '/')
@@ -58,89 +78,74 @@ export function Sidebar() {
 
   return (
     <aside style={{
-      width: '256px',
+      width: '248px',
       minHeight: '100vh',
-      background: 'color-mix(in srgb, var(--color-surfaceContainerLowest) 92%, transparent)',
-      backdropFilter: 'blur(20px)',
-      padding: '20px 12px',
+      background: C.chrome,
+      padding: '16px 10px',
       display: 'flex',
       flexDirection: 'column',
-      borderRight: `1px solid ${Colors.outlineVariant}`,
-      position: 'relative',
+      borderRight: `1px solid ${C.tileBorder}`,
       flexShrink: 0,
+      fontFamily: FONT,
     }}>
-
-      {/* Subtle glow accent top-left */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, width: '180px', height: '180px',
-        background: `radial-gradient(circle at 0% 0%, ${Colors.primary}18 0%, transparent 70%)`,
-        pointerEvents: 'none', borderRadius: '0 0 100% 0',
-      }} />
+      <style>{`
+        .crm-nav:hover { background: rgba(255,255,255,.6) }
+        .crm-signout:hover { background: #FEF2F2; border-color: #FECACA !important }
+      `}</style>
 
       {/* Logo */}
       <div
         onClick={() => navigate('/dashboard')}
         style={{
           display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '8px 12px', marginBottom: '28px', cursor: 'pointer',
-          position: 'relative', zIndex: 1,
+          padding: '10px 12px', marginBottom: '14px', cursor: 'pointer',
+          background: C.card, border: `1px solid ${C.tileBorder}`,
+          borderRadius: '10px',
         }}
       >
-        <img src="/logo.png" alt="LOQIT" style={{ height: '30px', width: 'auto', objectFit: 'contain', filter: 'var(--logo-filter)' }} />
+        <img src="/logo.png" alt="LOQIT" style={{ height: '26px', width: 'auto', objectFit: 'contain', filter: 'var(--logo-filter)' }} />
       </div>
 
-      {/* Nav section label */}
-      <div style={{ fontSize: '10px', fontWeight: 700, color: Colors.outline, letterSpacing: '1.5px', textTransform: 'uppercase', padding: '0 12px', marginBottom: '8px' }}>
+      <div style={{
+        fontSize: '11px', fontWeight: 700, color: '#5B5A64',
+        letterSpacing: '0.8px', textTransform: 'uppercase',
+        padding: '0 12px', marginBottom: '8px',
+      }}>
         Navigation
       </div>
 
-      {/* Nav Items */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
         {navItems.map((item) => {
           const active = isActive(item.path)
-          const hovered = hoveredPath === item.path
           return (
             <div
               key={item.path}
+              className={active ? undefined : 'crm-nav'}
               onClick={() => navigate(item.path)}
-              onMouseEnter={() => setHoveredPath(item.path)}
-              onMouseLeave={() => setHoveredPath(null)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '11px 14px', borderRadius: '12px',
-                position: 'relative', cursor: 'pointer',
-                background: active
-                  ? `linear-gradient(135deg, ${Colors.primary}22, ${Colors.accent}18)`
-                  : hovered ? Colors.surfaceContainerHigh : 'transparent',
-                border: active ? `1px solid ${Colors.primary}35` : '1px solid transparent',
-                boxShadow: active ? `0 0 16px ${Colors.primary}15, inset 0 1px 0 ${Colors.primary}20` : 'none',
-                color: active ? Colors.primary : hovered ? Colors.onSurface : Colors.onSurfaceVariant,
-                transition: 'all 0.2s ease',
-                fontWeight: active ? 700 : 500,
-                fontSize: '14px',
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '9px 14px', borderRadius: '999px',
+                cursor: 'pointer',
+                background: active ? C.card : 'transparent',
+                border: `1px solid ${active ? C.tileBorder : 'transparent'}`,
+                color: active ? C.primary : C.heading,
+                transition: 'background .15s ease, color .15s ease',
+                fontWeight: active ? 600 : 500,
+                fontSize: '13.5px',
               }}
             >
-              {active && (
-                <div style={{
-                  position: 'absolute', left: 0, top: '20%', bottom: '20%',
-                  width: '3px', borderRadius: '0 4px 4px 0',
-                  background: `linear-gradient(to bottom, ${Colors.primary}, ${Colors.accent})`,
-                  boxShadow: `0 0 8px ${Colors.primary}80`,
-                }} />
-              )}
-              <span className="material-icons" style={{
-                fontSize: '20px',
-                color: active ? Colors.primary : hovered ? Colors.onSurface : Colors.onSurfaceVariant,
-                transition: 'color 0.2s',
-                flexShrink: 0,
-              }}>{item.icon}</span>
+              <item.icon
+                size={18}
+                strokeWidth={active ? 2 : 1.75}
+                color={active ? C.primary : C.label}
+                style={{ flexShrink: 0 }}
+              />
               <span style={{ flex: 1 }}>{item.label}</span>
               {item.showBadge && unreadCount > 0 && (
                 <span style={{
-                  background: `linear-gradient(135deg, ${Colors.error}, #c44)`,
-                  color: '#fff', fontSize: '10px', fontWeight: 700,
-                  padding: '2px 7px', borderRadius: '10px',
-                  boxShadow: `0 0 8px ${Colors.error}60`,
+                  background: '#DC2626', color: '#fff',
+                  fontSize: '10px', fontWeight: 700,
+                  padding: '2px 7px', borderRadius: '999px',
                 }}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
@@ -150,46 +155,44 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Profile section */}
-      <div style={{ borderTop: `1px solid ${Colors.outlineVariant}`, paddingTop: '14px', marginTop: '14px' }}>
+      {/* Profile + sign out */}
+      <div style={{ paddingTop: '12px', marginTop: '12px' }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '12px 14px', borderRadius: '12px', marginBottom: '8px',
-          background: Colors.surfaceContainer,
-          border: `1px solid ${Colors.outlineVariant}`,
+          padding: '10px 12px', borderRadius: '10px', marginBottom: '6px',
+          background: C.card, border: `1px solid ${C.tileBorder}`,
         }}>
           <div style={{
-            width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
-            background: `linear-gradient(135deg, ${Colors.primary}, ${Colors.accent})`,
+            width: '32px', height: '32px', borderRadius: '999px', flexShrink: 0,
+            background: C.primary,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: Colors.onPrimary, fontWeight: 700, fontSize: '14px',
-            boxShadow: `0 0 12px ${Colors.primary}40`,
+            color: '#fff', fontWeight: 600, fontSize: '13px',
           }}>
             {initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, color: Colors.onSurface, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontWeight: 600, color: C.heading, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {profile?.full_name || 'LOQIT User'}
             </div>
-            <div style={{ fontSize: '11px', color: Colors.primary, fontWeight: 600 }}>
-              {profile?.role === 'police' ? '🔵 Police Officer' : profile?.role === 'admin' ? '⭐ Admin' : 'Civilian'}
+            <div style={{ fontSize: '11px', color: C.muted, fontWeight: 500 }}>
+              {profile?.role === 'police' ? 'Police Officer' : profile?.role === 'admin' ? 'Admin' : 'Civilian'}
             </div>
           </div>
         </div>
 
         <div
+          className="crm-signout"
           onClick={signOut}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${Colors.error}18`; e.currentTarget.style.borderColor = `${Colors.error}40` }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
           style={{
-            display: 'flex', alignItems: 'center', gap: '12px',
-            padding: '10px 14px', borderRadius: '10px',
-            cursor: 'pointer', color: Colors.error,
+            display: 'flex', alignItems: 'center', gap: '10px',
+            padding: '9px 14px', borderRadius: '10px',
+            cursor: 'pointer', color: '#DC2626',
             border: '1px solid transparent',
-            transition: 'all 0.2s ease', fontSize: '14px', fontWeight: 500,
+            transition: 'background .15s ease, border-color .15s ease',
+            fontSize: '13.5px', fontWeight: 500,
           }}
         >
-          <span className="material-icons" style={{ fontSize: '18px' }}>logout</span>
+          <LogOut size={17} strokeWidth={1.75} />
           Sign Out
         </div>
       </div>

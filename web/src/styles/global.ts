@@ -1,32 +1,32 @@
 
 export const globalStyles = `
   :root {
-    --color-background: #f8fafc;
+    --color-background: #F7F8FA;
     --color-surface: #ffffff;
-    --color-surfaceDim: #f1f5f9;
+    --color-surfaceDim: #F2F2F7;
     --color-surfaceContainerLowest: #ffffff;
-    --color-surfaceContainerLow: #f8fafc;
-    --color-surfaceContainer: #f1f5f9;
-    --color-surfaceContainerHigh: #e2e8f0;
-    --color-surfaceContainerHighest: #cbd5e1;
+    --color-surfaceContainerLow: #FBFBFD;
+    --color-surfaceContainer: #ffffff;
+    --color-surfaceContainerHigh: #F9FAFB;
+    --color-surfaceContainerHighest: #F2F2F7;
     --color-surfaceBright: #ffffff;
-    --color-surfaceVariant: #e2e8f0;
-    --color-onSurface: #0f172a;
-    --color-onSurfaceVariant: #475569;
-    --color-primary: #2563eb;
-    --color-primaryContainer: #dbeafe;
+    --color-surfaceVariant: #F9FAFB;
+    --color-onSurface: #111216;
+    --color-onSurfaceVariant: #6B7280;
+    --color-primary: #2776EA;
+    --color-primaryContainer: #EBEDFF;
     --color-inversePrimary: #1e3a8a;
-    --color-accent: #3b82f6;
+    --color-accent: #2776EA;
     --color-onPrimary: #ffffff;
     --color-secondary: #059669;
-    --color-secondaryContainer: #d1fae5;
+    --color-secondaryContainer: #D1FAE5;
     --color-onSecondary: #ffffff;
-    --color-tertiary: #d97706;
-    --color-tertiaryContainer: #fef3c7;
-    --color-error: #dc2626;
-    --color-errorContainer: #fee2e2;
-    --color-outline: #94a3b8;
-    --color-outlineVariant: #cbd5e1;
+    --color-tertiary: #D97706;
+    --color-tertiaryContainer: #FEF3C7;
+    --color-error: #DC2626;
+    --color-errorContainer: #FEF2F2;
+    --color-outline: #9CA3AF;
+    --color-outlineVariant: #F2F2F7;
     --logo-filter: brightness(1) saturate(1);
 
     /* ── DataCircles CRM design tokens ────────────────────────────────────
