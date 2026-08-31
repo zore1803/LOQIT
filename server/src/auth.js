@@ -1,31 +1,11 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { getDb } from './db.js'
+import { verifyAccessToken } from './tokens.js'
 
-// Auth stays on Supabase: clients send the Supabase access token and we verify
-// it here. Supports both the legacy HS256 shared secret and the newer
-// asymmetric keys published at the project's JWKS endpoint.
-const jwtSecret = process.env.SUPABASE_JWT_SECRET
-  ? new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET)
-  : null
-
-let jwks = null
-function getJwks() {
-  if (!jwks) {
-    const base = process.env.SUPABASE_URL?.replace(/\/$/, '')
-    if (!base) throw new Error('SUPABASE_URL is not set')
-    jwks = createRemoteJWKSet(new URL(`${base}/auth/v1/.well-known/jwks.json`))
-  }
-  return jwks
-}
-
-export async function verifySupabaseToken(token) {
-  const options = { audience: 'authenticated' }
-  if (jwtSecret) {
-    const { payload } = await jwtVerify(token, jwtSecret, options)
-    return payload
-  }
-  const { payload } = await jwtVerify(token, getJwks(), options)
-  return payload
+// Auth is issued and verified by this server (see authRoutes.js). Clients send
+// the access token we minted; there is no external identity provider in the
+// request path any more.
+export async function verifyToken(token) {
+  return verifyAccessToken(token)
 }
 
 // role cache: userId -> { role, expires }
@@ -42,9 +22,8 @@ export async function resolveUser(payload) {
   let profile = await profiles.findOne({ id: userId })
 
   if (!profile) {
-    // First request from a user that signed up after the migration (e.g. a new
-    // Google account). Supabase used a DB trigger to create the profile row;
-    // here we provision it on first authenticated call.
+    // First authenticated call for a newly created account — provision the
+    // profile row the rest of the app expects.
     const meta = payload.user_metadata || {}
     profile = {
       _id: userId,
@@ -67,12 +46,16 @@ export async function resolveUser(payload) {
   return { id: userId, email: payload.email, role: profile.role }
 }
 
+export function clearRoleCache(userId) {
+  roleCache.delete(userId)
+}
+
 export async function authMiddleware(req, res, next) {
   try {
     const header = req.headers.authorization || ''
     const token = header.startsWith('Bearer ') ? header.slice(7) : null
     if (!token) return res.status(401).json({ error: { message: 'Missing bearer token' } })
-    const payload = await verifySupabaseToken(token)
+    const payload = await verifyToken(token)
     req.user = await resolveUser(payload)
     next()
   } catch (err) {

@@ -1,38 +1,15 @@
-import * as SecureStore from 'expo-secure-store'
-import { Platform } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { createClient } from '@supabase/supabase-js'
-import Constants from 'expo-constants'
+/**
+ * Compatibility shim.
+ *
+ * Supabase has been removed — auth is issued by the LOQIT API and data lives in
+ * MongoDB. This keeps the old import path and the `supabase.auth.*` surface so
+ * existing screens and background tasks work unchanged.
+ *
+ * New code should import from `./authClient` (auth) or `./db` (data).
+ */
+import { auth } from './authClient'
 
-const ExpoSecureStoreAdapter = {
-  getItem: (key: string) => {
-    return SecureStore.getItemAsync(key)
-  },
-  setItem: (key: string, value: string) => {
-    return SecureStore.setItemAsync(key, value)
-  },
-  removeItem: (key: string) => {
-    return SecureStore.deleteItemAsync(key)
-  },
-}
+export const supabase = { auth }
 
-const extra = (Constants.expoConfig?.extra as any) || {}
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || extra.supabaseUrl || 'https://qnyukwxgrvrfwhrsaepj.supabase.co'
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || extra.supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFueXVrd3hncnZyZndocnNhZXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTkyNTUsImV4cCI6MjA5MTQ3NTI1NX0.82yHHZCoWOeui_zrltOqx-onq6s5G_j0emhhZobM4oE'
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('[LOQIT] Warning: Working with empty Supabase credentials.')
-}
-
-export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
-    auth: {
-      storage: Platform.OS === 'web' ? AsyncStorage : ExpoSecureStoreAdapter,
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  }
-)
+export { auth }
+export type { AuthSession, AuthUser } from './authClient'

@@ -2,6 +2,7 @@ import { CSSProperties, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
+import { auth } from '../lib/authClient'
 import { Colors } from '../lib/colors'
 
 export function ResetPasswordPage() {
@@ -12,13 +13,17 @@ export function ResetPasswordPage() {
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [ready, setReady] = useState(false)
+  // Set when arriving from a reset email; absent when an already signed-in user
+  // is simply changing their password.
+  const [resetToken, setResetToken] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setReady(true)
-      }
-    })
+    const token = new URLSearchParams(window.location.search).get('reset_token')
+    if (token) {
+      setResetToken(token)
+      setReady(true)
+      return
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setReady(true)
     })
@@ -30,13 +35,15 @@ export function ResetPasswordPage() {
       setMessage({ type: 'error', text: 'Passwords do not match.' })
       return
     }
-    if (password.length < 6) {
-      setMessage({ type: 'error', text: 'Password must be at least 6 characters.' })
+    if (password.length < 8) {
+      setMessage({ type: 'error', text: 'Password must be at least 8 characters.' })
       return
     }
     setLoading(true)
     setMessage(null)
-    const { error } = await supabase.auth.updateUser({ password })
+    const { error } = resetToken
+      ? await auth.resetPassword(resetToken, password)
+      : await supabase.auth.updateUser({ password })
     if (error) {
       setMessage({ type: 'error', text: error.message })
     } else {

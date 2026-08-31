@@ -12,9 +12,32 @@ services:
         sync: false # paste in Render dashboard (secret)
       - key: MONGO_DB
         value: loqit
-      - key: SUPABASE_URL
-        value: https://qnyukwxgrvrfwhrsaepj.supabase.co
       - key: APP_SECRET
         sync: false # paste in Render dashboard (secret)
       - key: CORS_ORIGINS
         value: "*"
+
+      # ── auth (issued by this service) ──────────────────────────────────────
+      # Signs LOQIT access tokens. Generate a long random value and paste it in
+      # the dashboard; changing it signs every user out.
+      - key: JWT_SECRET
+        sync: false
+
+      # One Google web client covers both the web app and Android, because the
+      # app opens a browser pointed at this service rather than talking to
+      # Google directly.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # Used to build the Google redirect URI. Must match the authorized
+      # redirect URI registered in Google Cloud Console, which is:
+      #   https://loqit-api.onrender.com/auth/google/callback
+      - key: PUBLIC_API_URL
+        value: https://loqit-api.onrender.com
+
+      # Where the browser lands after a successful Google sign-in when the
+      # client does not pass its own redirect_to.
+      - key: DEFAULT_REDIRECT_TO
+        sync: false

@@ -1,15 +1,15 @@
 /**
- * MongoDB data client. Drop-in replacement for the parts of the Supabase
- * client the app used for DATA (`.from()`, `.channel()`, `.rpc()`).
- * Auth stays on Supabase — this client sends the Supabase access token to
- * the LOQIT API (server/), which verifies it and enforces per-user scoping.
+ * MongoDB data client. Provides the `.from()` / `.channel()` / `.rpc()` API
+ * the app is written against.
+ * Auth is issued by the LOQIT API too — this client sends that access token
+ * to server/, which verifies it and enforces per-user scoping.
  *
  * Usage is call-compatible with the old code:
  *   db.from('devices').select('*').eq('owner_id', id).order(...).limit(...)
  *   db.channel('x').on('postgres_changes', { table: 'devices' }, cb).subscribe()
  */
 import { io, Socket } from 'socket.io-client'
-import { supabase } from './supabase'
+import { getAccessToken, auth } from './authClient'
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:4000').replace(/\/$/, '')
 
@@ -17,8 +17,7 @@ type Filter = { type: string; column: string; value: unknown }
 type QueryResult<T = any> = { data: T; error: { message: string } | null; count?: number }
 
 async function getToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession()
-  return data.session?.access_token ?? null
+  return getAccessToken()
 }
 
 async function post(path: string, body: unknown): Promise<QueryResult> {
@@ -106,7 +105,7 @@ async function getSocket(): Promise<Socket> {
   if (!socket) {
     const token = await getToken()
     socket = io(API_URL, { auth: { token }, transports: ['websocket'] })
-    supabase.auth.onAuthStateChange(async (_e, session) => {
+    auth.onAuthStateChange((_e, session) => {
       if (socket) {
         ;(socket.auth as any).token = session?.access_token
         if (!socket.connected) socket.connect()

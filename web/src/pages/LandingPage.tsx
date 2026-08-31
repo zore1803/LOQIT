@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
-import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { Colors } from '../lib/colors'
 import { ThemeToggle } from '../components/ThemeToggle'
@@ -626,7 +625,7 @@ export function LandingPage() {
               See the complete recovery journey — from registration to reunion.
             </p>
           </motion.div>
-          <StoryStep step="01" icon="app_registration" title="Register Your Device" desc="Add your phone's Serial Number, model, and details to LOQIT. Your ownership is verified and stored securely on Supabase." color={Colors.primary} delay={0} align="left" />
+          <StoryStep step="01" icon="app_registration" title="Register Your Device" desc="Add your phone's Serial Number, model, and details to LOQIT. Your ownership is verified and stored securely on the LOQIT network." color={Colors.primary} delay={0} align="left" />
           <StoryStep step="02" icon="sentiment_very_dissatisfied" title="Device Goes Missing" desc="Mark your device as lost with one tap. It enters Lost Mode — broadcasting a silent BLE beacon that the LOQIT network watches for." color={Colors.error} delay={0.1} align="right" />
           <StoryStep step="03" icon="my_location" title="Finder Detects It Nearby" desc="Any LOQIT user nearby gets an automatic push notification. Their app silently records location and triggers a finder alert to you." color={Colors.secondary} delay={0.2} align="left" />
           <StoryStep step="04" icon="chat" title="Secure Chat Initiated" desc="A one-time anonymous chat room opens. No names, no numbers shared. AI risk scoring monitors the conversation for safety." color={Colors.tertiary} delay={0.3} align="right" />

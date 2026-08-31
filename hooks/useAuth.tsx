@@ -1,6 +1,15 @@
 import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { AuthError, Session, User } from '@supabase/supabase-js'
+import type { AuthSession as Session, AuthUser as User } from '../lib/authClient'
+
+// Kept so existing `new AuthError(...)` / `{ name: 'AuthError' }` call sites
+// and the context's error type still line up now that Supabase is gone.
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthError'
+  }
+}
 import * as WebBrowser from 'expo-web-browser'
 import * as Linking from 'expo-linking'
 

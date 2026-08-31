@@ -1,5 +1,5 @@
 import { Server } from 'socket.io'
-import { verifySupabaseToken, resolveUser } from './auth.js'
+import { verifyToken, resolveUser } from './auth.js'
 import { isPolice } from './rules.js'
 import { getDb } from './db.js'
 
@@ -14,7 +14,7 @@ export function initRealtime(httpServer, corsOrigins) {
     try {
       const token = socket.handshake.auth?.token
       if (!token) return next(new Error('missing token'))
-      const payload = await verifySupabaseToken(token)
+      const payload = await verifyToken(token)
       socket.data.user = await resolveUser(payload)
       next()
     } catch (err) {

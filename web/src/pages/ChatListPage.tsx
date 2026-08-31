@@ -1,7 +1,6 @@
 import { CSSProperties, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Colors } from '../lib/colors'
-import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 import { Card } from '../components/Card'

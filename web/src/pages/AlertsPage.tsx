@@ -1,6 +1,5 @@
 import { CSSProperties, useEffect, useState, useCallback } from 'react'
 import { Colors } from '../lib/colors'
-import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 import { Card } from '../components/Card'

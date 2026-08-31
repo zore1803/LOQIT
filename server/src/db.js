@@ -22,6 +22,11 @@ export function getDb() {
 
 async function ensureIndexes(db) {
   await Promise.all([
+    db.collection('users').createIndex({ email: 1 }, { unique: true }),
+    db.collection('users').createIndex({ id: 1 }, { unique: true }),
+    db.collection('users').createIndex({ google_sub: 1 }, { sparse: true }),
+    db.collection('refresh_tokens').createIndex({ token_hash: 1 }, { unique: true }),
+    db.collection('refresh_tokens').createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
     db.collection('devices').createIndex({ owner_id: 1 }),
     db.collection('devices').createIndex({ serial_number: 1 }),
     db.collection('devices').createIndex({ status: 1 }),

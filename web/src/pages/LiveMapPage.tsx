@@ -1,7 +1,6 @@
 import { useEffect, useState, CSSProperties } from 'react'
 import { Colors } from '../lib/colors'
 import { useDevices, Device } from '../hooks/useDevices'
-import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api'
 

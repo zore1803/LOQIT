@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import type { AuthUser as User, AuthSession as Session } from '../lib/authClient'
 import { db } from '../lib/db'
 import { getAuthRedirectUrl } from '../lib/authRedirect'
 
@@ -26,6 +26,8 @@ type AuthContextType = {
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
+
+const toError = (e: { message: string } | null) => (e ? new Error(e.message) : null)
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
@@ -136,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     })
-    return { error: error as Error | null }
+    return { error: toError(error) }
   }
 
   const isPhone = (val: string) => /^\+?[0-9]{10,15}$/.test(val.replace(/[\s-]/g, ''))
@@ -151,23 +153,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (identifier: string, password: string) => {
     const id = formatIdentifier(identifier)
-    const { data, error } = await supabase.auth.signInWithPassword(
-      isPhone(id) ? { phone: id, password } : { email: id, password }
-    )
-
-    return { error: error as Error | null }
+    if (isPhone(id)) {
+      return { error: new Error('Sign in with your email address') }
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email: id, password })
+    return { error: toError(error) }
   }
 
   const signUp = async (identifier: string, password: string, fullName: string) => {
     const id = formatIdentifier(identifier)
     
     if (isPhone(id)) {
-      const { error } = await supabase.auth.signUp({
-        phone: id,
-        password,
-        options: { data: { full_name: fullName, phone_number: id } },
-      })
-      return { error: error as Error | null }
+      return { error: new Error('Sign up with your email address') }
     } else {
       const sanitizedEmail = id.toLowerCase().trim()
       const { data, error } = await supabase.auth.signUp({
@@ -176,8 +173,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: { data: { full_name: fullName } },
       })
 
-      if (error && !error.message.toLowerCase().includes('already registered')) {
-        return { error: error as Error | null }
+      if (error && !error.message.toLowerCase().includes('already exists')) {
+        return { error: toError(error) }
       }
 
       const userId = data.user?.id
@@ -190,17 +187,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       })
 
-      return { error: signInError as Error | null }
+      return { error: toError(signInError) }
     }
   }
 
   const verifyOtp = async (identifier: string, token: string) => {
     const id = formatIdentifier(identifier)
-    const normalizedEmail = id.toLowerCase().trim()
 
     if (isPhone(id)) {
-      const { error } = await supabase.auth.verifyOtp({ phone: id, token, type: 'sms' })
-      return { error: error as Error | null }
+      return { error: new Error('Phone verification is not enabled') }
     } else {
       try {
         let userId = user?.id;
@@ -214,8 +209,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
           
           if (signUpError) {
-            if (!signUpError.message.toLowerCase().includes('already registered')) {
-               return { error: signUpError }
+            if (!signUpError.message.toLowerCase().includes('already exists')) {
+               return { error: toError(signUpError) }
             }
           }
           userId = signUpData?.user?.id
@@ -243,11 +238,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resendOtp = async (identifier: string) => {
     const id = formatIdentifier(identifier)
     if (isPhone(id)) {
-      const { error } = await supabase.auth.resend({ type: 'sms', phone: id })
-      return { error: error as Error | null }
-    } else {
-      return { error: null }
+      return { error: new Error('Phone verification is not enabled') }
     }
+    return { error: null }
   }
 
   const signOut = async () => {
@@ -258,9 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null)
     setSession(null)
     try {
-      // scope: 'local' clears the stored session without depending on a successful
-      // server round-trip (which can throw on expired/missing sessions or flaky net).
-      await supabase.auth.signOut({ scope: 'local' })
+      await supabase.auth.signOut()
     } catch (err) {
       console.warn('AuthProvider: signOut error (ignored, local state already cleared):', err)
     }

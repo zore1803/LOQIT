@@ -155,8 +155,7 @@ function AuthGate() {
 
     // 2. If session exists, handle verification
     if (session) {
-      const isGoogleUser = session?.user?.app_metadata?.provider === 'google' || 
-                           session?.user?.identities?.some(id => id.provider === 'google');
+      const isGoogleUser = session?.user?.app_metadata?.provider === 'google';
 
       if (!profile) {
         if (profileWaitExpired) {

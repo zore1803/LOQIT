@@ -4,6 +4,7 @@ import express from 'express'
 import cors from 'cors'
 import { connectMongo, getDb } from './db.js'
 import { authMiddleware } from './auth.js'
+import authRoutes from './authRoutes.js'
 import { runQuery } from './queryEngine.js'
 import { initRealtime, emitChange } from './realtime.js'
 import { generateDeviceKey } from './deviceKey.js'
@@ -14,6 +15,9 @@ app.use(cors({ origin: corsOrigins.includes('*') ? true : corsOrigins }))
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
+
+// Authentication is issued by this server (email/password + Google OAuth).
+app.use('/auth', authRoutes)
 
 // Generic data endpoint — the client-side `db.from(...)` shim posts here.
 app.post('/api/db', authMiddleware, async (req, res) => {

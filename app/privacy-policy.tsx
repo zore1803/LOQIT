@@ -40,9 +40,9 @@ export default function PrivacyPolicyScreen() {
         </Section>
 
         <Section title="Data Storage & Security">
-          Your data is stored securely using Supabase with encryption at rest and in transit. 
-          We implement row-level security policies to ensure you can only access your own data. 
-          Aadhaar information is stored as a one-way hash and cannot be reversed.
+          Your data is stored in MongoDB with encryption in transit. Every request is checked 
+          against per-collection access rules, so you can only read your own data. Passwords are 
+          stored as bcrypt hashes and Aadhaar information as a one-way hash; neither can be reversed.
         </Section>
 
         <Section title="Location Data">

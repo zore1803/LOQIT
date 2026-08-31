@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Colors } from '../lib/colors'
-import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { Card } from '../components/Card'
 

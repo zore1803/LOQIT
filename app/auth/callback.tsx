@@ -52,7 +52,6 @@ export default function AuthCallback() {
 
       if (latestProfile) {
         const isGoogleUser = latestSession.user.app_metadata?.provider === 'google'
-          || latestSession.user.identities?.some(identity => identity.provider === 'google')
 
         if (isGoogleUser || latestProfile.email_verified) {
           router.replace('/(tabs)')
@@ -78,7 +77,6 @@ export default function AuthCallback() {
     if (loading || !session) return
 
     const isGoogleUser = session.user.app_metadata?.provider === 'google'
-      || session.user.identities?.some(identity => identity.provider === 'google')
 
     if (profile && (isGoogleUser || profile.email_verified)) {
       router.replace('/(tabs)')

@@ -65,9 +65,9 @@ export default function AboutScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Technology</Text>
           <Text style={styles.sectionText}>
-            Built with React Native & Expo for cross-platform support. Uses Supabase for 
-            secure backend services and real-time communication. BLE advertising and scanning 
-            for proximity detection without requiring internet connectivity.
+            Built with React Native & Expo for cross-platform support. A MongoDB-backed 
+            LOQIT API handles accounts and real-time communication. BLE advertising and scanning 
+            provide proximity detection without requiring internet connectivity.
           </Text>
         </View>
 

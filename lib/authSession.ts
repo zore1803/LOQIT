@@ -2,12 +2,11 @@ import * as Linking from 'expo-linking'
 import { supabase } from './supabase'
 
 /**
- * Completes a Supabase auth session from an OAuth redirect URL.
+ * Completes an auth session from an OAuth redirect URL.
  *
- * The mobile client uses `detectSessionInUrl: false`, so the session is never
- * established automatically. This helper is the single place that knows how to
- * read tokens (implicit flow) or a code (PKCE flow) out of a redirect URL and
- * turn them into a real session — used by:
+ * Nothing establishes the session automatically on mobile, so this helper is
+ * the single place that knows how to read a one-time code (or tokens) out of a
+ * redirect URL and turn it into a real session — used by:
  *   - hooks/useAuth.tsx        (warm flow: res.url from openAuthSessionAsync)
  *   - app/_layout.tsx          (warm/background deep link + cold start)
  *   - app/auth/callback.tsx    (cold start fallback)

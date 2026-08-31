@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true
   },
+  "exclude": ["node_modules", "scratch"],
   "include": [
     "**/*.ts",
     "**/*.tsx",

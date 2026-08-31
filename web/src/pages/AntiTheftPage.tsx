@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Colors } from '../lib/colors'
-import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
 

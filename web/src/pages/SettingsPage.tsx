@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { Colors } from '../lib/colors'
 import './SettingsPage.css'

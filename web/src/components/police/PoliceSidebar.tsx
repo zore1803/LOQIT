@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Colors } from '../../lib/colors'
 import { useAuth } from '../../hooks/useAuth'
-import { supabase } from '../../lib/supabase'
 import { db } from '../../lib/db'
 
 const policeNavItems = [

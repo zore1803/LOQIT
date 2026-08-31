@@ -1,36 +1,15 @@
-import { createClient } from '@supabase/supabase-js'
+/**
+ * Compatibility shim.
+ *
+ * Supabase has been removed — auth is now issued by the LOQIT API and data
+ * lives in MongoDB. This module keeps the old import path and the
+ * `supabase.auth.*` surface so existing screens keep working unchanged.
+ *
+ * New code should import from `./authClient` (auth) or `./db` (data) directly.
+ */
+import { auth } from './authClient'
 
-function resolveSupabaseUrl(): string {
-  const api = import.meta.env.VITE_SUPABASE_API_URL
-  const raw = import.meta.env.VITE_SUPABASE_URL || ''
+export const supabase = { auth }
 
-  if (api && api.startsWith('https://')) return api
-
-  if (raw.startsWith('https://') && raw.includes('.supabase.co')) return raw
-
-  if (raw && !raw.startsWith('http')) {
-    return `https://${raw}.supabase.co`
-  }
-
-  console.warn('Could not resolve a valid Supabase URL. Check VITE_SUPABASE_API_URL or VITE_SUPABASE_URL.')
-  return 'https://placeholder.supabase.co'
-}
-
-const supabaseUrl = resolveSupabaseUrl()
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-
-if (!supabaseAnonKey) {
-  console.warn('Missing VITE_SUPABASE_ANON_KEY environment variable.')
-}
-
-export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey || 'placeholder-key',
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  }
-)
+export { auth }
+export type { AuthSession, AuthUser } from './authClient'

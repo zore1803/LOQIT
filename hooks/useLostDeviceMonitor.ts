@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { NativeModules, Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
-import type { Session } from '@supabase/supabase-js'
+import type { AuthSession as Session } from '../lib/authClient'
 
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
