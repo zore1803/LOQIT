@@ -1,9 +1,12 @@
-import { CSSProperties, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Colors } from '../lib/colors'
+import { MessageSquare, MessagesSquare, Smartphone, ChevronRight, RefreshCw } from 'lucide-react'
 import { db } from '../lib/db'
 import { useAuth } from '../hooks/useAuth'
-import { Card } from '../components/Card'
+import {
+  C, TONE, Page, PageHeader, Card, Button, Badge, Skeleton,
+  EmptyState, ErrorState, SummaryCard, IconTile,
+} from '../components/crm'
 
 type RoomRecord = {
   id: string
@@ -17,15 +20,6 @@ type RoomRecord = {
     imei_primary: string
     status: string
   } | null
-}
-
-type ChatMessage = {
-  id: string
-  room_id: string
-  sender_role: 'owner' | 'finder' | 'system'
-  content: string | null
-  is_read: boolean
-  sent_at: string
 }
 
 type RoomItem = {
@@ -159,213 +153,110 @@ export function ChatListPage() {
       )
       .subscribe()
 
+
+
     return () => {
       db.removeChannel(channel)
     }
   }, [fetchRooms])
 
-  const containerStyle: CSSProperties = {
-    padding: '40px',
-    maxWidth: '1000px',
-    margin: '0 auto',
-  }
-
-  const headerStyle: CSSProperties = {
-    marginBottom: '40px',
-    background: `linear-gradient(135deg, ${Colors.primary}10 0%, transparent 100%)`,
-    padding: '32px',
-    borderRadius: '20px',
-    border: `1px solid ${Colors.primary}20`,
-  }
-
-  const titleStyle: CSSProperties = {
-    fontSize: '32px',
-    fontWeight: 700,
-    color: Colors.onSurface,
-    marginBottom: '12px',
-    letterSpacing: '-0.5px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  }
-
-  const subtitleStyle: CSSProperties = {
-    color: Colors.onSurfaceVariant,
-    fontSize: '16px',
-  }
-
-  const roomCardStyle = (isActive: boolean): CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: '20px',
-    padding: '24px',
-    marginBottom: '16px',
-    cursor: 'pointer',
-    opacity: isActive ? 1 : 0.7,
-    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    border: `1px solid ${Colors.outlineVariant}`,
-  })
-
-  const avatarStyle: CSSProperties = {
-    width: '64px',
-    height: '64px',
-    borderRadius: '16px',
-    background: `linear-gradient(135deg, ${Colors.primary}30 0%, ${Colors.primary}10 100%)`,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    border: `2px solid ${Colors.primary}40`,
-  }
-
-  const emptyStyle: CSSProperties = {
-    textAlign: 'center',
-    padding: '80px 40px',
-    color: Colors.onSurfaceVariant,
-    background: `linear-gradient(135deg, ${Colors.primary}08 0%, transparent 100%)`,
-  }
-
-  if (loading) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ textAlign: 'center', padding: '100px', color: Colors.onSurfaceVariant }}>
-          <span className="material-icons" style={{ fontSize: '48px', animation: 'spin 1s linear infinite', marginBottom: '16px', display: 'block' }}>
-            sync
-          </span>
-          <div style={{ fontSize: '18px', fontWeight: 600 }}>Loading chats...</div>
-        </div>
-      </div>
-    )
-  }
+  const totalUnread = rooms.reduce((sum, r) => sum + r.unreadCount, 0)
+  const activeRooms = rooms.filter(r => r.isActive).length
 
   return (
-    <div style={containerStyle}>
-      <header style={headerStyle}>
-        <h1 style={titleStyle}>
-          <span className="material-icons" style={{ fontSize: '36px', color: Colors.primary }}>
-            chat
-          </span>
-          Messages
-        </h1>
-        <p style={subtitleStyle}>
-          Anonymous conversations for device recovery
-        </p>
-      </header>
+    <Page>
+      <PageHeader
+        title="Messages"
+        subtitle="Anonymous conversations between you and whoever finds your device"
+        actions={<Button variant="ghost" icon={RefreshCw} onClick={() => fetchRooms()}>Refresh</Button>}
+      />
 
-      {error && (
-        <Card variant="elevated" style={{ backgroundColor: `${Colors.error}20`, marginBottom: '24px', border: `2px solid ${Colors.error}40`, padding: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span className="material-icons" style={{ color: Colors.error }}>error</span>
-            <p style={{ color: Colors.error, fontWeight: 600 }}>{error}</p>
-          </div>
-        </Card>
-      )}
+      <div className="crm-c3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
+        <SummaryCard label="Conversations" value={rooms.length} icon={MessagesSquare} tone={TONE.blue} loading={loading} />
+        <SummaryCard label="Active" value={activeRooms} icon={MessageSquare} tone={TONE.green} loading={loading} />
+        <SummaryCard label="Unread Messages" value={totalUnread} icon={MessageSquare} tone={totalUnread ? TONE.amber : TONE.grey} loading={loading} note={totalUnread ? 'awaiting reply' : 'all caught up'} />
+      </div>
 
-      {rooms.length === 0 ? (
-        <Card variant="elevated" style={emptyStyle}>
-          <span
-            className="material-icons"
-            style={{ fontSize: '96px', color: Colors.primary, marginBottom: '24px', display: 'block', opacity: 0.5 }}
-          >
-            chat_bubble_outline
-          </span>
-          <h2 style={{ color: Colors.onSurface, marginBottom: '12px', fontSize: '28px', fontWeight: 700 }}>
-            No active chats
-          </h2>
-          <p style={{ fontSize: '16px', maxWidth: '500px', margin: '0 auto' }}>
-            When someone finds your lost device, a chat will appear here for coordination.
-          </p>
-        </Card>
-      ) : (
-        <div>
-          {rooms.map((room) => (
-            <Card
-              key={room.id}
-              variant="elevated"
-              style={roomCardStyle(room.isActive)}
-              onClick={() => navigate(`/chat/${room.id}`)}
-            >
-              <div style={avatarStyle}>
-                <span className="material-icons" style={{ color: Colors.primary, fontSize: '32px' }}>
-                  smartphone
-                </span>
-              </div>
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h3 style={{ color: Colors.onSurface, fontSize: '20px', fontWeight: 700, letterSpacing: '-0.2px' }}>
-                    {room.make} {room.model}
-                  </h3>
-                  <span style={{ color: Colors.onSurfaceVariant, fontSize: '13px', fontWeight: 600 }}>
-                    {getRelativeTime(room.lastSentAt)}
-                  </span>
+      <Card>
+        {loading ? (
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Skeleton width={38} height={38} radius={10} />
+                <div style={{ flex: 1 }}>
+                  <Skeleton width="32%" height={13} />
+                  <Skeleton width="58%" height={11} style={{ marginTop: '6px' }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <p
-                    style={{
-                      color: Colors.onSurfaceVariant,
-                      fontSize: '15px',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      maxWidth: '80%',
-                    }}
-                  >
+                <Skeleton width={40} height={11} />
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <ErrorState message={error} onRetry={() => fetchRooms()} />
+        ) : rooms.length === 0 ? (
+          <EmptyState
+            icon={MessagesSquare}
+            title="No conversations yet"
+            body="When someone finds one of your devices, a private chat opens here. Neither side ever sees the other's phone number."
+          />
+        ) : (
+          <div>
+            {rooms.map((room, i) => (
+              <div
+                key={room.id}
+                className="crm-row"
+                onClick={() => navigate(`/chat/${room.id}`)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  padding: '14px 20px', cursor: 'pointer',
+                  borderBottom: i < rooms.length - 1 ? `1px solid ${C.border}` : 'none',
+                  background: room.unreadCount > 0 ? 'rgba(39,118,234,.03)' : undefined,
+                }}
+              >
+                <IconTile icon={Smartphone} size={38} />
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>
+                      {room.make} {room.model}
+                    </span>
+                    <span style={{ fontSize: '11px', color: C.muted, fontFamily: 'ui-monospace, monospace' }}>
+                      ····{room.imeiTail}
+                    </span>
+                    {!room.isActive && <Badge tone={TONE.grey}>Closed</Badge>}
+                    {room.status === 'lost' && <Badge tone={TONE.red}>Lost</Badge>}
+                  </div>
+                  <p style={{
+                    fontSize: '12px', margin: '3px 0 0',
+                    color: room.unreadCount > 0 ? C.heading : C.muted,
+                    fontWeight: room.unreadCount > 0 ? 500 : 400,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
                     {room.lastMessage}
                   </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <span style={{ fontSize: '11px', color: C.muted, whiteSpace: 'nowrap' }}>
+                    {getRelativeTime(room.lastSentAt)}
+                  </span>
                   {room.unreadCount > 0 && (
-                    <span
-                      style={{
-                        backgroundColor: Colors.primary,
-                        color: Colors.onPrimary,
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        padding: '4px 12px',
-                        borderRadius: '12px',
-                        minWidth: '24px',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {room.unreadCount}
+                    <span style={{
+                      minWidth: '20px', height: '20px', padding: '0 6px',
+                      borderRadius: '999px', background: C.primary, color: '#fff',
+                      fontSize: '11px', fontWeight: 700,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {room.unreadCount > 99 ? '99+' : room.unreadCount}
                     </span>
                   )}
-                </div>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      color: Colors.onSurfaceVariant,
-                      backgroundColor: Colors.surfaceContainerHighest,
-                      padding: '4px 12px',
-                      borderRadius: '8px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    IMEI ···· {room.imeiTail}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      color: room.isActive ? Colors.secondary : Colors.error,
-                      backgroundColor: room.isActive ? `${Colors.secondary}20` : `${Colors.error}20`,
-                      padding: '4px 12px',
-                      borderRadius: '8px',
-                      border: `2px solid ${room.isActive ? Colors.secondary : Colors.error}40`,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    {room.isActive ? 'Active' : 'Closed'}
-                  </span>
+                  <ChevronRight size={15} color={C.muted} />
                 </div>
               </div>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </Page>
   )
 }

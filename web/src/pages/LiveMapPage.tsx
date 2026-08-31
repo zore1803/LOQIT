@@ -1,8 +1,12 @@
 import { useEffect, useState, CSSProperties } from 'react'
-import { Colors } from '../lib/colors'
+import { MapPin, Smartphone, Radio, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 import { useDevices, Device } from '../hooks/useDevices'
 import { db } from '../lib/db'
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api'
+import {
+  C, TONE, FONT, Page, PageHeader, Card, CardHeader, Badge,
+  Skeleton, EmptyState, SummaryCard, IconTile,
+} from '../components/crm'
 
 type BeaconLog = {
   id: string
@@ -16,11 +20,11 @@ type BeaconLog = {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  lost: '#FF4E4E',
-  stolen: '#FF4E4E',
-  recovered: '#ffb95f',
-  found: '#ffb95f',
-  registered: '#46f1bb',
+  lost: TONE.red,
+  stolen: TONE.red,
+  recovered: TONE.amber,
+  found: TONE.amber,
+  registered: TONE.green,
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -33,26 +37,24 @@ const STATUS_LABEL: Record<string, string> = {
 
 const mapContainerStyle: CSSProperties = { width: '100%', height: '100%' }
 
-const darkMapStyle = [
-  { elementType: 'geometry', stylers: [{ color: '#1a1d24' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1d24' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] },
-  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
-  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
-  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
-  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
-  { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
-  { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] },
+// Light basemap, so the map sits on the light page instead of fighting it.
+const lightMapStyle = [
+  { elementType: 'geometry', stylers: [{ color: '#F7F8FA' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#6B7280' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#E5E7EB' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#ECFDF5' }, { visibility: 'on' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#F2F2F7' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9CA3AF' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#FEF3C7' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#DBEAFE' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#93C5FD' }] },
 ]
+
+const FILTERS = ['all', 'lost', 'registered', 'recovered'] as const
 
 export function LiveMapPage() {
   const { devices, loading } = useDevices()
@@ -63,17 +65,11 @@ export function LiveMapPage() {
 
   const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
 
-  useEffect(() => {
-    console.log('[GoogleMaps Debug] Key loaded:', googleMapsApiKey ? 'Yes (starts with ' + googleMapsApiKey.slice(0, 5) + '...)' : 'No')
-  }, [googleMapsApiKey])
-
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey
-  })
+  const { isLoaded, loadError } = useJsApiLoader({ googleMapsApiKey })
 
   useEffect(() => {
     if (loadError) {
-      console.error('[GoogleMaps Debug] Load Error:', loadError)
+      console.error('[LiveMap] Google Maps failed to load:', loadError)
     }
   }, [loadError])
 
@@ -89,7 +85,7 @@ export function LiveMapPage() {
   }, [])
 
   async function fetchBeaconLogs() {
-    // 1. Fetch all devices marked as lost, stolen or recovered as a base
+    // Start from every lost/recovered device that already has a location.
     const { data: baseDevices } = await db
       .from('devices')
       .select('id, make, model, status, last_seen_lat, last_seen_lng, last_seen_at, serial_number')
@@ -98,7 +94,6 @@ export function LiveMapPage() {
 
     const logsMap = new Map()
 
-    // Initialize with device base location
     baseDevices?.forEach((d: any) => {
       logsMap.set(d.id, {
         id: `dev-${d.id}`,
@@ -108,21 +103,14 @@ export function LiveMapPage() {
         reported_at: d.last_seen_at,
         device_make: d.make,
         device_model: d.model,
-        device_serial: d.serial_number
+        device_serial: d.serial_number,
       })
     })
 
-    // 2. Fetch the actual detection logs (real-time signals)
+    // Then overlay the actual mesh sightings, keeping the most recent per device.
     const { data: signals } = await db
       .from('beacon_logs')
-      .select(`
-        id, 
-        device_id, 
-        latitude, 
-        longitude, 
-        reported_at,
-        devices(make, model, serial_number)
-      `)
+      .select('id, device_id, latitude, longitude, reported_at, devices(make, model, serial_number)')
       .order('reported_at', { ascending: false })
       .limit(100)
 
@@ -138,7 +126,7 @@ export function LiveMapPage() {
             reported_at: log.reported_at,
             device_make: log.devices?.make,
             device_model: log.devices?.model,
-            device_serial: log.devices?.serial_number
+            device_serial: log.devices?.serial_number,
           })
         }
       })
@@ -155,60 +143,90 @@ export function LiveMapPage() {
     return true
   })
 
-  if (loading) {
-    return (
-      <div style={{ padding: '40px', textAlign: 'center', background: Colors.background, minHeight: '100vh' }}>
-        <span className="material-icons" style={{ color: Colors.primary, fontSize: '48px', animation: 'spin 1.5s linear infinite' }}>sync</span>
-      </div>
-    )
-  }
+  const lost = devices.filter(d => d.status === 'lost' || d.status === 'stolen').length
+  const located = devices.filter(d => d.last_seen_lat != null).length
+  const sightingsToday = beaconLogs.filter(l =>
+    new Date(l.reported_at).toDateString() === new Date().toDateString()).length
 
   return (
-    <div style={{
-      padding: '24px 32px', maxWidth: '1440px', margin: '0 auto', background: Colors.background, minHeight: '100vh',
-      display: 'flex', flexDirection: 'column', gap: '24px'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <h1 style={{ color: Colors.onSurface, fontSize: '32px', fontWeight: 900, marginBottom: '8px' }}>Global Tracking Grid</h1>
-          <p style={{ color: Colors.onSurfaceVariant, fontSize: '14px' }}>Real-time spatial visualization of protected devices and crowd-sourced signal sweeps.</p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px', background: Colors.surfaceContainer, padding: '4px', borderRadius: '12px' }}>
-          {(['all', 'lost', 'registered', 'recovered'] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => setFilter(type)}
-              style={{
-                padding: '8px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700,
-                transition: 'all 0.2s', textTransform: 'capitalize',
-                background: filter === type ? Colors.primary : 'transparent',
-                color: filter === type ? Colors.onPrimary : Colors.onSurfaceVariant,
-              }}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
+    <Page>
+      <PageHeader
+        title="Live Map"
+        subtitle="Where your devices were last seen, and what the Scout mesh has reported"
+      />
+
+      <div className="crm-c4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '20px' }}>
+        <SummaryCard label="Devices Tracked" value={devices.length} icon={Smartphone} tone={TONE.blue} loading={loading} />
+        <SummaryCard label="With a Location" value={located} icon={MapPin} tone={TONE.green} loading={loading} note={devices.length ? `of ${devices.length}` : undefined} />
+        <SummaryCard label="Currently Lost" value={lost} icon={AlertTriangle} tone={lost ? TONE.red : TONE.grey} loading={loading} />
+        <SummaryCard label="Sightings Today" value={sightingsToday} icon={Radio} tone={sightingsToday ? TONE.amber : TONE.grey} loading={loading} />
       </div>
 
-      <div className="r-grid-main-side" style={{
-        display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '24px',
-        height: 'calc(100vh - 200px)', minHeight: '500px'
-      }}>
-        <div style={{
-          position: 'relative', background: Colors.surfaceContainerLowest, border: `1px solid ${Colors.outlineVariant}`,
-          borderRadius: '24px', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
-        }}>
-          {isLoaded ? (
+      <Card style={{ padding: '14px 16px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: C.label }}>Show</span>
+          <div style={{ display: 'flex', gap: '4px', background: C.tile, border: `1px solid ${C.tileBorder}`, borderRadius: '999px', padding: '3px' }}>
+            {FILTERS.map(type => {
+              const active = filter === type
+              return (
+                <button
+                  key={type}
+                  onClick={() => setFilter(type)}
+                  style={{
+                    padding: '6px 14px', borderRadius: '999px', cursor: 'pointer',
+                    fontSize: '12px', fontWeight: 600, fontFamily: FONT, textTransform: 'capitalize',
+                    background: active ? C.card : 'transparent',
+                    color: active ? C.primary : C.label,
+                    border: `1px solid ${active ? C.tileBorder : 'transparent'}`,
+                  }}
+                >
+                  {type}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            onClick={() => setShowBeacons(!showBeacons)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '7px',
+              padding: '7px 13px', borderRadius: '999px', cursor: 'pointer',
+              fontSize: '12px', fontWeight: 600, fontFamily: FONT,
+              background: showBeacons ? 'rgba(5,150,105,.07)' : C.card,
+              border: `1px solid ${showBeacons ? TONE.green : C.border}`,
+              color: showBeacons ? TONE.green : C.label,
+            }}
+          >
+            {showBeacons ? <Eye size={14} /> : <EyeOff size={14} />}
+            Beacon sweeps
+          </button>
+
+          <span style={{ fontSize: '12px', color: C.muted, fontWeight: 500, marginLeft: 'auto' }}>
+            {filteredDevices.length} shown
+          </span>
+        </div>
+      </Card>
+
+      <div
+        className="crm-split"
+        style={{
+          display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '20px',
+          alignItems: 'stretch', height: 'calc(100vh - 340px)', minHeight: '480px',
+        }}
+      >
+        <Card style={{ overflow: 'hidden', position: 'relative' }}>
+          {loadError ? (
+            <EmptyState
+              icon={MapPin}
+              title="Map could not load"
+              body="Check that VITE_GOOGLE_MAPS_API_KEY is set and that the Maps JavaScript API is enabled for it."
+            />
+          ) : isLoaded ? (
             <GoogleMap
               mapContainerStyle={mapContainerStyle}
               center={{ lat: 20.5937, lng: 78.9629 }}
               zoom={5}
-              options={{
-                styles: darkMapStyle,
-                disableDefaultUI: true,
-                zoomControl: true,
-              }}
+              options={{ styles: lightMapStyle, disableDefaultUI: true, zoomControl: true }}
             >
               {filteredDevices.map(device => (
                 <Marker
@@ -217,9 +235,9 @@ export function LiveMapPage() {
                   onClick={() => setSelectedDevice(device)}
                   icon={{
                     path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: STATUS_COLOR[device.status] || Colors.primary,
+                    fillColor: STATUS_COLOR[device.status] || TONE.blue,
                     fillOpacity: 1,
-                    strokeColor: 'white',
+                    strokeColor: '#ffffff',
                     strokeWeight: 2,
                     scale: selectedDevice?.id === device.id ? 10 : 7,
                   }}
@@ -230,14 +248,14 @@ export function LiveMapPage() {
                 <Marker
                   key={log.id}
                   position={{ lat: log.latitude, lng: log.longitude }}
-                  opacity={0.6}
+                  opacity={0.7}
                   icon={{
-                    path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-                    fillColor: Colors.secondary,
-                    fillOpacity: 0.5,
-                    strokeColor: Colors.secondary,
+                    path: google.maps.SymbolPath.CIRCLE,
+                    fillColor: TONE.green,
+                    fillOpacity: 0.45,
+                    strokeColor: TONE.green,
                     strokeWeight: 1,
-                    scale: 3,
+                    scale: 4,
                   }}
                 />
               ))}
@@ -247,85 +265,119 @@ export function LiveMapPage() {
                   position={{ lat: selectedDevice.last_seen_lat || 20, lng: selectedDevice.last_seen_lng || 78 }}
                   onCloseClick={() => setSelectedDevice(null)}
                 >
-                  <div style={{ color: '#000', padding: '6px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '14px', marginBottom: '2px' }}>{selectedDevice.make} {selectedDevice.model}</div>
-                    <div style={{ fontSize: '11px', color: STATUS_COLOR[selectedDevice.status], fontWeight: 700 }}>
-                      {STATUS_LABEL[selectedDevice.status]}
+                  <div style={{ fontFamily: FONT, padding: '2px 4px', minWidth: '140px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#111216' }}>
+                      {selectedDevice.make} {selectedDevice.model}
+                    </div>
+                    <div style={{
+                      fontSize: '11px', fontWeight: 600, marginTop: '3px',
+                      color: STATUS_COLOR[selectedDevice.status] || TONE.blue,
+                    }}>
+                      {STATUS_LABEL[selectedDevice.status] || selectedDevice.status}
                     </div>
                     {selectedDevice.last_seen_at && (
-                       <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px' }}>
-                         Seen: {new Date(selectedDevice.last_seen_at).toLocaleString()}
-                       </div>
+                      <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                        Seen {new Date(selectedDevice.last_seen_at).toLocaleString('en-IN', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </div>
                     )}
                   </div>
                 </InfoWindow>
               )}
             </GoogleMap>
           ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-               <span className="material-icons" style={{ animation: 'spin 1.5s linear infinite', color: Colors.outline }}>sync</span>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+              <Skeleton width="100%" height="100%" radius={16} />
             </div>
           )}
 
-          <div style={{
-            position: 'absolute', bottom: '24px', left: '24px', background: 'rgba(26,29,36,0.85)',
-            backdropFilter: 'blur(8px)', padding: '12px 20px', borderRadius: '16px', border: `1px solid ${Colors.outlineVariant}`,
-            display: 'flex', alignItems: 'center', gap: '16px', zIndex: 1
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: Colors.primary }} />
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#fff', textTransform: 'uppercase' }}>{filteredDevices.length} Protected</span>
+          {isLoaded && !loadError && (
+            <div style={{
+              position: 'absolute', bottom: '16px', left: '16px', zIndex: 1,
+              display: 'flex', alignItems: 'center', gap: '14px',
+              background: 'rgba(255,255,255,.92)', backdropFilter: 'blur(8px)',
+              border: `1px solid ${C.tileBorder}`, borderRadius: '12px',
+              padding: '9px 14px', fontFamily: FONT,
+            }}>
+              {[
+                { tone: TONE.green, label: 'Protected' },
+                { tone: TONE.red, label: 'Lost' },
+                { tone: TONE.amber, label: 'Recovered' },
+              ].map(l => (
+                <span key={l.label} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#374151', fontWeight: 500 }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: l.tone }} />
+                  {l.label}
+                </span>
+              ))}
             </div>
-            <div style={{ width: '1px', height: '16px', background: Colors.outlineVariant }} />
-            <button
-               onClick={() => setShowBeacons(!showBeacons)}
-               style={{
-                 background: 'transparent', border: 'none', color: showBeacons ? Colors.secondary : Colors.outline,
-                 fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
-               }}
-            >
-              <span className="material-icons" style={{ fontSize: '16px' }}>{showBeacons ? 'visibility' : 'visibility_off'}</span>
-              BEACON SWEEPS
-            </button>
-          </div>
-        </div>
+          )}
+        </Card>
 
-        <div style={{
-          background: Colors.surfaceContainer, border: `1px solid ${Colors.outlineVariant}`,
-          borderRadius: '24px', overflow: 'hidden', display: 'flex', flexDirection: 'column'
-        }}>
-          <div style={{ padding: '20px', borderBottom: `1px solid ${Colors.outlineVariant}` }}>
-             <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: Colors.onSurface }}>Recent Sightings</h3>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {beaconLogs.map((log, i) => (
-              <div
-                key={log.id}
-                onClick={() => setSelectedDevice(devices.find(d => d.id === log.device_id) || null)}
-                style={{
-                  padding: '16px', borderBottom: i < beaconLogs.length - 1 ? `1px solid ${Colors.outlineVariant}50` : 'none',
-                  cursor: 'pointer', transition: 'background 0.2s',
-                  background: selectedDevice?.id === log.device_id ? Colors.primary + '10' : 'transparent'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: Colors.onSurface }}>{log.device_make} {log.device_model}</span>
-                </div>
-                <div style={{ fontSize: '10px', color: Colors.onSurfaceVariant, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span className="material-icons" style={{ fontSize: '12px' }}>place</span>
-                  {log.latitude.toFixed(4)}, {log.longitude.toFixed(4)}
-                </div>
-                <div style={{ fontSize: '10px', color: Colors.outline, marginTop: '4px' }}>
-                   {new Date(log.reported_at).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
+        <Card style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <CardHeader title="Recent Sightings" subtitle="Reported by nearby LOQIT devices" />
+          <div style={{ flex: 1, overflowY: 'auto', borderTop: `1px solid ${C.border}` }}>
+            {loading ? (
+              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{ display: 'flex', gap: '11px' }}>
+                    <Skeleton width={32} height={32} radius={10} />
+                    <div style={{ flex: 1 }}>
+                      <Skeleton width="55%" height={12} />
+                      <Skeleton width="40%" height={10} style={{ marginTop: '6px' }} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : beaconLogs.length === 0 ? (
+              <EmptyState
+                icon={Radio}
+                title="No sightings yet"
+                body="When a LOQIT device passes near one of yours, the encrypted sighting shows up here."
+              />
+            ) : (
+              beaconLogs.map((log, i) => {
+                const device = devices.find(d => d.id === log.device_id)
+                const active = selectedDevice?.id === log.device_id
+                return (
+                  <div
+                    key={log.id}
+                    className="crm-row"
+                    onClick={() => setSelectedDevice(device || null)}
+                    style={{
+                      display: 'flex', gap: '11px', padding: '13px 20px', cursor: 'pointer',
+                      borderBottom: i < beaconLogs.length - 1 ? `1px solid ${C.border}` : 'none',
+                      background: active ? 'rgba(39,118,234,.05)' : undefined,
+                    }}
+                  >
+                    <IconTile icon={MapPin} tone={device ? (STATUS_COLOR[device.status] || TONE.blue) : TONE.blue} size={32} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>
+                          {log.device_make} {log.device_model}
+                        </span>
+                        {device && (
+                          <Badge tone={STATUS_COLOR[device.status] || TONE.blue}>
+                            {STATUS_LABEL[device.status] || device.status}
+                          </Badge>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: C.label, marginTop: '3px', fontFamily: 'ui-monospace, monospace' }}>
+                        {log.latitude.toFixed(4)}, {log.longitude.toFixed(4)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>
+                        {new Date(log.reported_at).toLocaleString('en-IN', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
-        </div>
+        </Card>
       </div>
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
-    </div>
+    </Page>
   )
 }
