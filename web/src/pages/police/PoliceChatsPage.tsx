@@ -1,9 +1,14 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Colors } from '../../lib/colors'
+import {
+  MessagesSquare, Smartphone, ShieldAlert, Info, CheckCircle2, Sparkles,
+  AlertCircle, RefreshCw, MapPin, Clock, Banknote, Phone, User,
+} from 'lucide-react'
 import { db } from '../../lib/db'
-import { Card } from '../../components/Card'
-import { Button } from '../../components/Button'
 import { analyzeChat, ChatAnalysis } from '../../services/aiService'
+import {
+  C, TONE, Page, PageHeader, Card, CardHeader, Button, Badge,
+  Skeleton, EmptyState, IconTile,
+} from '../../components/crm'
 
 type ChatRoomData = {
   id: string
@@ -25,31 +30,24 @@ type ChatMessage = {
   sent_at: string
 }
 
-const RISK_COLOR: Record<string, string> = {
-  Low: Colors.secondary,
-  Medium: Colors.tertiary,
-  High: Colors.error,
-}
-
-const RISK_BG: Record<string, string> = {
-  Low: Colors.secondary + '22',
-  Medium: Colors.tertiary + '22',
-  High: Colors.error + '22',
+const RISK_TONE: Record<string, string> = {
+  Low: TONE.green,
+  Medium: TONE.amber,
+  High: TONE.red,
 }
 
 function RiskBadge({ level }: { level: string }) {
-  const color = RISK_COLOR[level] || Colors.outline
+  const tone = RISK_TONE[level] || TONE.grey
+  const Icon = level === 'High' ? ShieldAlert : level === 'Medium' ? Info : CheckCircle2
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '4px',
-      padding: '3px 10px', borderRadius: '100px', fontSize: '12px', fontWeight: 700,
-      background: RISK_BG[level] || `${Colors.outline}22`,
-      border: `1px solid ${color}44`, color,
+      display: 'inline-flex', alignItems: 'center', gap: '5px',
+      padding: '3px 10px', borderRadius: '999px',
+      fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap',
+      background: tone + '14', color: tone, border: '1px solid ' + tone + '33',
     }}>
-      <span className="material-icons" style={{ fontSize: '13px' }}>
-        {level === 'High' ? 'warning' : level === 'Medium' ? 'info' : 'check_circle'}
-      </span>
-      {level} Risk
+      <Icon size={12} />
+      {level} risk
     </span>
   )
 }
@@ -146,239 +144,306 @@ export function PoliceChatsPage() {
 
   const selectedRoomData = rooms.find(r => r.id === selectedRoom)
 
+  const activeRooms = rooms.filter(r => r.is_active).length
+  const flagged = rooms.filter(r => r.riskScore?.riskLevel === 'High').length
+
   return (
-    <div style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ fontSize: '32px', fontWeight: 700, color: Colors.onSurface, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span className="material-icons" style={{ fontSize: '36px', color: Colors.primary }}>chat</span>
-          Chat Surveillance
-        </div>
-        <div style={{ fontSize: '15px', color: Colors.onSurfaceVariant }}>
-          Monitor all finder-owner conversations. AI risk scoring runs automatically.
+    <Page>
+      <PageHeader
+        title="All Chats"
+        subtitle="Owner and finder conversations, screened for risk"
+      />
+
+      {groqKeyMissing && (
+        <Card style={{ padding: '13px 18px', marginBottom: '20px', background: '#FFFBEB', borderColor: '#FDE68A' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+            <AlertCircle size={16} color={TONE.amber} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: '#92400E', fontWeight: 500 }}>
+              AI screening is off — VITE_GROQ_API_KEY is not configured. Chats are still readable.
+            </span>
+          </div>
+        </Card>
+      )}
+
+      <div className="crm-c3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
+        <div style={{ display: 'contents' }}>
+          <Card style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <MessagesSquare size={16} color={TONE.blue} />
+              <p style={{ fontSize: '13px', color: C.label, fontWeight: 500, margin: 0 }}>Total Conversations</p>
+            </div>
+            {loading ? <Skeleton width={56} height={28} /> : (
+              <h3 style={{ fontSize: '24px', fontWeight: 700, color: C.heading, margin: 0 }}>{rooms.length}</h3>
+            )}
+          </Card>
+          <Card style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <MessagesSquare size={16} color={TONE.green} />
+              <p style={{ fontSize: '13px', color: C.label, fontWeight: 500, margin: 0 }}>Active</p>
+            </div>
+            {loading ? <Skeleton width={56} height={28} /> : (
+              <h3 style={{ fontSize: '24px', fontWeight: 700, color: C.heading, margin: 0 }}>{activeRooms}</h3>
+            )}
+          </Card>
+          <Card style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <ShieldAlert size={16} color={flagged ? TONE.red : TONE.grey} />
+              <p style={{ fontSize: '13px', color: C.label, fontWeight: 500, margin: 0 }}>Flagged High Risk</p>
+            </div>
+            {loading ? <Skeleton width={56} height={28} /> : (
+              <h3 style={{ fontSize: '24px', fontWeight: 700, color: C.heading, margin: 0 }}>{flagged}</h3>
+            )}
+          </Card>
         </div>
       </div>
 
-      {groqKeyMissing && (
-        <div style={{
-          background: `${Colors.tertiary}18`, border: `1px solid ${Colors.tertiary}44`,
-          borderRadius: '12px', padding: '14px 18px', marginBottom: '24px',
-          display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px', color: Colors.tertiary,
-        }}>
-          <span className="material-icons" style={{ fontSize: '20px' }}>info</span>
-          <div>
-            <strong>AI Risk Scoring:</strong> Add <code style={{ background: `${Colors.tertiary}22`, padding: '2px 6px', borderRadius: '4px' }}>VITE_GROQ_API_KEY</code> to your environment variables to enable automatic chat risk analysis.
+      <div className="crm-split" style={{ display: 'grid', gridTemplateColumns: '340px minmax(0,1fr)', gap: '20px', alignItems: 'start' }}>
+
+        {/* Conversation list */}
+        <Card style={{ overflow: 'hidden' }}>
+          <CardHeader title="Conversations" subtitle="Newest first" />
+          <div style={{ borderTop: '1px solid var(--crm-border)', maxHeight: '640px', overflowY: 'auto' }}>
+            {loading ? (
+              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {[0, 1, 2, 3].map(i => (
+                  <div key={i} style={{ display: 'flex', gap: '11px' }}>
+                    <Skeleton width={34} height={34} radius={10} />
+                    <div style={{ flex: 1 }}>
+                      <Skeleton width="55%" height={12} />
+                      <Skeleton width="40%" height={10} style={{ marginTop: '6px' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : rooms.length === 0 ? (
+              <EmptyState icon={MessagesSquare} title="No conversations" body="Chats open when a finder contacts a device owner." />
+            ) : (
+              rooms.map((room, i) => {
+                const active = selectedRoom === room.id
+                return (
+                  <div
+                    key={room.id}
+                    className={active ? undefined : 'crm-row'}
+                    onClick={() => setSelectedRoom(room.id)}
+                    style={{
+                      display: 'flex', gap: '11px', padding: '13px 20px', cursor: 'pointer',
+                      borderBottom: i < rooms.length - 1 ? '1px solid var(--crm-border)' : 'none',
+                      background: active ? 'rgba(39,118,234,.05)' : undefined,
+                    }}
+                  >
+                    <IconTile icon={Smartphone} tone={room.is_active ? TONE.green : TONE.grey} size={34} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {room.devices?.make} {room.devices?.model}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: C.muted, marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {room.profiles?.full_name || 'Unknown owner'}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                        {!room.is_active && <Badge tone={TONE.grey}>Closed</Badge>}
+                        {room.riskScore && <RiskBadge level={room.riskScore.riskLevel} />}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
-        </div>
-      )}
+        </Card>
 
-      <div className="r-grid-main-side" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '24px', height: 'calc(100vh - 220px)' }}>
-        {/* Room list */}
-        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: Colors.onSurfaceVariant }}>
-              <span className="material-icons" style={{ fontSize: '40px', color: Colors.outline, display: 'block', marginBottom: '8px', animation: 'spin 1s linear infinite' }}>sync</span>
-              Loading…
-            </div>
-          ) : rooms.length === 0 ? (
-            <Card style={{ padding: '40px', textAlign: 'center' }}>
-              <span className="material-icons" style={{ fontSize: '40px', color: Colors.outline, display: 'block', marginBottom: '8px' }}>chat_bubble_outline</span>
-              <p style={{ color: Colors.onSurfaceVariant, margin: 0 }}>No chat rooms yet</p>
+        {/* Transcript + analysis */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {!selectedRoom ? (
+            <Card>
+              <EmptyState
+                icon={MessagesSquare}
+                title="Select a conversation"
+                body="Pick a chat on the left to read the transcript and its AI risk assessment."
+              />
             </Card>
-          ) : rooms.map(room => (
-            <Card
-              key={room.id}
-              onClick={() => setSelectedRoom(room.id)}
-              style={{
-                padding: '14px 16px', cursor: 'pointer',
-                border: `1px solid ${selectedRoom === room.id ? Colors.primary + '66' : Colors.outlineVariant}`,
-                background: selectedRoom === room.id ? `${Colors.primary}10` : Colors.surfaceContainerLow,
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: Colors.onSurface }}>
-                  {room.devices?.make} {room.devices?.model}
-                </div>
+          ) : (
+            <>
+              <Card style={{ overflow: 'hidden' }}>
+                <CardHeader
+                  title={selectedRoomData ? `${selectedRoomData.devices?.make} ${selectedRoomData.devices?.model}` : 'Transcript'}
+                  subtitle={selectedRoomData?.devices?.serial_number ? 'Serial ' + selectedRoomData.devices.serial_number : undefined}
+                  action={selectedRoomData?.profiles?.full_name
+                    ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: C.label }}>
+                        <User size={13} color={C.muted} />
+                        {selectedRoomData.profiles.full_name}
+                      </span>
+                    )
+                    : undefined}
+                />
                 <div style={{
-                  width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0, marginTop: '4px',
-                  background: room.is_active ? Colors.secondary : Colors.outline,
-                  boxShadow: room.is_active ? `0 0 6px ${Colors.secondary}` : 'none',
-                }} />
-              </div>
-              <div style={{ fontSize: '12px', color: Colors.outline, marginBottom: '8px' }}>
-                Owner: {room.profiles?.full_name}
-              </div>
-              {room.riskScore && <RiskBadge level={room.riskScore.riskLevel} />}
-              {!room.riskScore && (
-                <span style={{ fontSize: '11px', color: Colors.outline }}>
-                  {new Date(room.created_at).toLocaleDateString()}
-                </span>
-              )}
-            </Card>
-          ))}
-        </div>
-
-        {/* Chat panel + analysis */}
-        {selectedRoom ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: analysis ? '1fr 320px' : '1fr', gap: '16px', flex: 1, overflow: 'hidden' }}>
-              {/* Messages */}
-              <Card style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '16px 20px', borderBottom: `1px solid ${Colors.outlineVariant}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, color: Colors.onSurface }}>
-                      {selectedRoomData?.devices?.make} {selectedRoomData?.devices?.model}
-                    </div>
-                    <div style={{ fontSize: '12px', color: Colors.outline }}>
-                      Owner: {selectedRoomData?.profiles?.full_name}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {analysis && <RiskBadge level={analysis.riskLevel} />}
-                    <Button
-                      variant="outline"
-                      onClick={manualAnalyze}
-                      loading={analysisLoading}
-                      icon="psychology"
-                      size="small"
-                    >
-                      {analysisLoading ? 'Analyzing…' : 'Re-analyze'}
-                    </Button>
-                  </div>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  borderTop: '1px solid var(--crm-border)',
+                  maxHeight: '420px', overflowY: 'auto',
+                  padding: '16px 20px', background: 'var(--crm-tile)',
+                  display: 'flex', flexDirection: 'column', gap: '10px',
+                }}>
                   {messagesLoading ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: Colors.onSurfaceVariant }}>
-                      <span className="material-icons" style={{ fontSize: '36px', color: Colors.outline, display: 'block', marginBottom: '8px', animation: 'spin 1s linear infinite' }}>sync</span>
-                    </div>
+                    [0, 1, 2].map(i => <Skeleton key={i} width="60%" height={40} radius={12} />)
                   ) : messages.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: Colors.onSurfaceVariant }}>
-                      <span className="material-icons" style={{ fontSize: '36px', color: Colors.outline, display: 'block', marginBottom: '8px' }}>chat_bubble_outline</span>
-                      No messages yet
+                    <div style={{ textAlign: 'center', padding: '28px 0', fontSize: '13px', color: C.muted }}>
+                      No messages in this conversation yet.
                     </div>
-                  ) : messages.map(msg => (
-                    <div key={msg.id} style={{
-                      display: 'flex',
-                      justifyContent: msg.sender_role === 'system' ? 'center' : msg.sender_role === 'owner' ? 'flex-end' : 'flex-start',
-                    }}>
-                      {msg.sender_role === 'system' ? (
-                        <span style={{ fontSize: '11px', color: Colors.outline, background: Colors.surfaceContainerHigh, padding: '4px 12px', borderRadius: '100px' }}>
-                          {msg.content}
-                        </span>
-                      ) : (
-                        <div style={{
-                          maxWidth: '70%',
-                          background: msg.sender_role === 'owner' ? Colors.primaryContainer : Colors.surfaceContainerHigh,
-                          borderRadius: '14px', padding: '10px 14px',
-                        }}>
-                          <div style={{ fontSize: '10px', fontWeight: 600, color: Colors.outline, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            {msg.sender_role}
+                  ) : (
+                    messages.map(msg => {
+                      const isOwner = msg.sender_role === 'owner'
+                      const isSystem = msg.sender_role === 'system'
+                      if (isSystem) {
+                        return (
+                          <div key={msg.id} style={{ textAlign: 'center', fontSize: '11px', color: C.muted, padding: '4px 0' }}>
+                            {msg.content}
                           </div>
-                          <div style={{ fontSize: '14px', color: Colors.onSurface }}>{msg.content}</div>
-                          <div style={{ fontSize: '10px', color: Colors.outline, marginTop: '4px' }}>
-                            {new Date(msg.sent_at).toLocaleTimeString()}
+                        )
+                      }
+                      return (
+                        <div key={msg.id} style={{ display: 'flex', justifyContent: isOwner ? 'flex-end' : 'flex-start' }}>
+                          <div style={{
+                            maxWidth: '76%', padding: '9px 13px', borderRadius: '14px',
+                            background: isOwner ? C.primary : 'var(--crm-card)',
+                            color: isOwner ? '#fff' : C.heading,
+                            border: isOwner ? 'none' : '1px solid var(--crm-tile-border)',
+                            fontSize: '13px', lineHeight: 1.5,
+                          }}>
+                            <div style={{
+                              fontSize: '10px', fontWeight: 700, letterSpacing: '.4px',
+                              opacity: .7, marginBottom: '3px', textTransform: 'uppercase',
+                            }}>
+                              {msg.sender_role}
+                            </div>
+                            {msg.content}
+                            <div style={{ fontSize: '10px', opacity: .6, marginTop: '4px', textAlign: 'right' }}>
+                              {new Date(msg.sent_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      )
+                    })
+                  )}
                 </div>
               </Card>
 
-              {/* Analysis panel */}
-              {analysis && (
-                <Card style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ padding: '14px 18px', borderBottom: `1px solid ${Colors.outlineVariant}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="material-icons" style={{ fontSize: '20px', color: Colors.primary }}>psychology</span>
-                    <span style={{ fontWeight: 700, color: Colors.onSurface, fontSize: '15px' }}>AI Risk Analysis</span>
-                  </div>
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* AI analysis */}
+              <Card>
+                <CardHeader
+                  title="AI Risk Assessment"
+                  subtitle="Generated from the transcript by Llama 3.3 via Groq"
+                  action={
+                    <Button variant="ghost" icon={analysisLoading ? RefreshCw : Sparkles} onClick={manualAnalyze} disabled={analysisLoading || messages.length < 2}>
+                      {analysisLoading ? 'Analysing…' : 'Re-analyse'}
+                    </Button>
+                  }
+                />
+                <div style={{ padding: '0 24px 22px' }}>
+                  {analysisLoading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <Skeleton width="30%" height={22} radius={999} />
+                      <Skeleton width="100%" height={12} />
+                      <Skeleton width="85%" height={12} />
+                    </div>
+                  ) : analysisError ? (
                     <div style={{
-                      background: RISK_BG[analysis.riskLevel] || `${Colors.outline}22`,
-                      border: `1px solid ${(RISK_COLOR[analysis.riskLevel] || Colors.outline) + '44'}`,
-                      borderRadius: '12px', padding: '14px', textAlign: 'center',
+                      display: 'flex', alignItems: 'center', gap: '9px',
+                      padding: '11px 14px', borderRadius: '12px',
+                      background: '#FFFBEB', border: '1px solid #FDE68A',
+                      color: '#92400E', fontSize: '12.5px',
                     }}>
-                      <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Risk Level</div>
-                      <div style={{ fontSize: '28px', fontWeight: 800, color: RISK_COLOR[analysis.riskLevel] || Colors.outline }}>
-                        {analysis.riskLevel}
-                      </div>
+                      <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                      {analysisError}
                     </div>
+                  ) : !analysis ? (
+                    <p style={{ fontSize: '13px', color: C.muted, margin: 0 }}>
+                      {messages.length < 2
+                        ? 'Not enough messages to assess yet.'
+                        : 'No assessment yet — run one with Re-analyse.'}
+                    </p>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: '14px' }}>
+                        <RiskBadge level={analysis.riskLevel} />
+                      </div>
 
-                    <div>
-                      <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Summary</div>
-                      <div style={{ fontSize: '13px', color: Colors.onSurface, lineHeight: '1.6', background: Colors.surfaceContainerHigh, borderRadius: '10px', padding: '12px' }}>
+                      <p style={{ fontSize: '13px', color: C.heading, lineHeight: 1.65, margin: '0 0 16px' }}>
                         {analysis.summary}
-                      </div>
-                    </div>
+                      </p>
 
-                    {analysis.redFlags && analysis.redFlags.length > 0 && (
-                      <div>
-                        <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '8px', textTransform: 'uppercase', fontWeight: 600 }}>Red Flags</div>
-                        {analysis.redFlags.map((flag, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
-                            <span className="material-icons" style={{ fontSize: '16px', color: Colors.error, flexShrink: 0, marginTop: '1px' }}>flag</span>
-                            <span style={{ fontSize: '13px', color: Colors.onSurface }}>{flag}</span>
+                      {analysis.redFlags?.length > 0 && (
+                        <div style={{ marginBottom: '16px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: C.label, letterSpacing: '.6px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                            Red flags
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {analysis.redFlags.map((flag, i) => (
+                              <div key={i} style={{
+                                display: 'flex', alignItems: 'flex-start', gap: '8px',
+                                padding: '9px 12px', borderRadius: '10px',
+                                background: '#FEF2F2', border: '1px solid #FECACA',
+                                fontSize: '12.5px', color: '#991B1B', lineHeight: 1.5,
+                              }}>
+                                <ShieldAlert size={13} style={{ flexShrink: 0, marginTop: '2px' }} />
+                                {flag}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                    {analysis.actionableInsights && (
-                      <div>
-                        <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '8px', textTransform: 'uppercase', fontWeight: 600 }}>Actionable Intel</div>
-                        {Object.entries(analysis.actionableInsights)
-                          .filter(([, v]) => v && v !== 'Not mentioned' && v !== 'None' && v !== 'N/A')
-                          .map(([k, v]) => (
-                            <div key={k} style={{ marginBottom: '8px' }}>
-                              <div style={{ fontSize: '11px', color: Colors.outline, textTransform: 'capitalize', marginBottom: '2px' }}>{k.replace(/([A-Z])/g, ' $1').trim()}</div>
-                              <div style={{ fontSize: '13px', color: Colors.onSurface, fontWeight: 500 }}>{v as string}</div>
-                            </div>
-                          ))}
-                      </div>
-                    )}
+                      {analysis.actionableInsights && (
+                        <div style={{ marginBottom: '16px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: C.label, letterSpacing: '.6px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                            Extracted details
+                          </div>
+                          <div style={{ background: 'var(--crm-tile)', border: '1px solid var(--crm-tile-border)', borderRadius: '12px', overflow: 'hidden' }}>
+                            {[
+                              { icon: MapPin, label: 'Location', value: analysis.actionableInsights.location },
+                              { icon: Clock, label: 'Meeting time', value: analysis.actionableInsights.meetingTime },
+                              { icon: Banknote, label: 'Reward discussed', value: analysis.actionableInsights.rewardDiscussed },
+                              { icon: Phone, label: 'Contact shared', value: analysis.actionableInsights.contactInfo },
+                            ].filter(r => r.value).map((row, i, arr) => (
+                              <div key={row.label} style={{
+                                display: 'flex', alignItems: 'center', gap: '10px',
+                                padding: '10px 14px',
+                                borderBottom: i < arr.length - 1 ? '1px solid var(--crm-tile-border)' : 'none',
+                              }}>
+                                <row.icon size={14} color={C.muted} style={{ flexShrink: 0 }} />
+                                <span style={{ fontSize: '12px', color: C.label, flex: 1 }}>{row.label}</span>
+                                <span style={{ fontSize: '12.5px', fontWeight: 500, color: C.heading, textAlign: 'right' }}>
+                                  {row.value}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                    <div style={{ background: `${Colors.primary}18`, border: `1px solid ${Colors.primary}33`, borderRadius: '12px', padding: '12px' }}>
-                      <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Recommendation</div>
-                      <div style={{ fontSize: '13px', color: Colors.onSurface, lineHeight: '1.5' }}>{analysis.recommendation}</div>
-                    </div>
-                  </div>
-                </Card>
-              )}
-            </div>
+                      {analysis.recommendation && (
+                        <div style={{
+                          padding: '12px 14px', borderRadius: '12px',
+                          background: '#EFF6FF', border: '1px solid #BFDBFE',
+                        }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#1E40AF', letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: '5px' }}>
+                            Recommendation
+                          </div>
+                          <p style={{ fontSize: '12.5px', color: '#1D4ED8', margin: 0, lineHeight: 1.6 }}>
+                            {analysis.recommendation}
+                          </p>
+                        </div>
+                      )}
 
-            {/* Analysis error */}
-            {analysisError && !analysis && (
-              <div style={{
-                background: `${Colors.tertiary}18`, border: `1px solid ${Colors.tertiary}44`,
-                borderRadius: '10px', padding: '12px 16px', fontSize: '13px', color: Colors.tertiary,
-                display: 'flex', alignItems: 'center', gap: '8px',
-              }}>
-                <span className="material-icons" style={{ fontSize: '18px' }}>info</span>
-                {analysisError}
-              </div>
-            )}
-
-            {analysisLoading && !analysis && (
-              <div style={{
-                background: `${Colors.primary}18`, border: `1px solid ${Colors.primary}33`,
-                borderRadius: '10px', padding: '12px 16px', fontSize: '13px', color: Colors.primary,
-                display: 'flex', alignItems: 'center', gap: '8px',
-              }}>
-                <span className="material-icons" style={{ fontSize: '18px', animation: 'spin 1s linear infinite' }}>psychology</span>
-                Running AI risk analysis…
-              </div>
-            )}
-          </div>
-        ) : (
-          <Card style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
-            <span className="material-icons" style={{ fontSize: '56px', color: Colors.outline }}>chat_bubble_outline</span>
-            <p style={{ color: Colors.onSurfaceVariant, fontSize: '16px', margin: 0 }}>Select a chat room to monitor</p>
-            <p style={{ color: Colors.outline, fontSize: '13px', margin: 0, textAlign: 'center', maxWidth: '280px' }}>
-              AI risk scoring runs automatically when you open a conversation
-            </p>
-          </Card>
-        )}
+                      <p style={{ fontSize: '11px', color: C.muted, margin: '14px 0 0', lineHeight: 1.5 }}>
+                        Generated by a language model. Treat it as a lead to verify, not as evidence.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </Card>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </Page>
   )
 }

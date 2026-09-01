@@ -97,11 +97,19 @@ export function PageHeader({ title, subtitle, actions }: {
   )
 }
 
-export function Card({ children, style, padding = 0 }: {
-  children: ReactNode; style?: CSSProperties; padding?: number | string
+export function Card({ children, style, padding = 0, onClick }: {
+  children: ReactNode; style?: CSSProperties; padding?: number | string; onClick?: () => void
 }) {
   return (
-    <div style={{ ...cardStyle, padding: typeof padding === 'number' ? `${padding}px` : padding, ...style }}>
+    <div
+      onClick={onClick}
+      style={{
+        ...cardStyle,
+        padding: typeof padding === 'number' ? `${padding}px` : padding,
+        cursor: onClick ? 'pointer' : undefined,
+        ...style,
+      }}
+    >
       {children}
     </div>
   )

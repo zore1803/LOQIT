@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Colors } from '../../lib/colors'
+import {
+  Inbox, FileSearch, CheckCircle2, Lock,
+  AlertTriangle, X, UserPlus, User, Save, FileDown, RefreshCw,
+} from 'lucide-react'
 import { db } from '../../lib/db'
-import { Card } from '../../components/Card'
-import { Button } from '../../components/Button'
 import { generateCaseSummary } from '../../services/aiService'
+import {
+  C, TONE, FONT, Page, PageHeader, Card, Button,
+  Skeleton, EmptyState, inputStyle,
+} from '../../components/crm'
 
 type CaseStatus = 'unassigned' | 'under_investigation' | 'resolved' | 'closed'
 
@@ -30,23 +35,24 @@ type LostReport = {
 
 type OfficerProfile = { id: string; full_name: string | null }
 
-const STATUS_CONFIG: Record<CaseStatus, { label: string; color: string; icon: string }> = {
-  unassigned: { label: 'Unassigned', color: Colors.outline, icon: 'inbox' },
-  under_investigation: { label: 'Under Investigation', color: Colors.tertiary, icon: 'manage_search' },
-  resolved: { label: 'Resolved', color: Colors.secondary, icon: 'check_circle' },
-  closed: { label: 'Closed', color: Colors.primary, icon: 'lock' },
+const STATUS_CONFIG: Record<CaseStatus, { label: string; tone: string; icon: typeof Inbox }> = {
+  unassigned: { label: 'Unassigned', tone: TONE.grey, icon: Inbox },
+  under_investigation: { label: 'Under Investigation', tone: TONE.amber, icon: FileSearch },
+  resolved: { label: 'Resolved', tone: TONE.green, icon: CheckCircle2 },
+  closed: { label: 'Closed', tone: TONE.blue, icon: Lock },
 }
 
 function StatusBadge({ status }: { status: CaseStatus | null }) {
   const cfg = STATUS_CONFIG[status || 'unassigned']
+  const Icon = cfg.icon
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: '5px',
-      padding: '3px 10px', borderRadius: '100px',
-      background: `${cfg.color}22`, border: `1px solid ${cfg.color}44`,
-      fontSize: '12px', fontWeight: 600, color: cfg.color,
+      padding: '3px 10px', borderRadius: '999px',
+      background: cfg.tone + '14', border: '1px solid ' + cfg.tone + '33',
+      fontSize: '11px', fontWeight: 600, color: cfg.tone, whiteSpace: 'nowrap',
     }}>
-      <span className="material-icons" style={{ fontSize: '14px' }}>{cfg.icon}</span>
+      <Icon size={12} />
       {cfg.label}
     </span>
   )
@@ -252,207 +258,243 @@ Case Notes: ${selectedReport.case_notes || 'None'}
   const unassignedCount = reports.filter(r => !r.case_status || r.case_status === 'unassigned').length
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ fontSize: '32px', fontWeight: 700, color: Colors.onSurface, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span className="material-icons" style={{ fontSize: '36px', color: Colors.error }}>assignment</span>
-          Case Management
-        </div>
-        <div style={{ fontSize: '15px', color: Colors.onSurfaceVariant }}>
-          Assign officers, track investigation status, and manage case notes.
-        </div>
-        {unassignedCount > 0 && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px', marginTop: '12px',
-            background: `${Colors.error}18`, border: `1px solid ${Colors.error}44`,
-            borderRadius: '10px', padding: '8px 16px', fontSize: '14px', color: Colors.error, fontWeight: 600,
-          }}>
-            <span className="material-icons" style={{ fontSize: '16px' }}>warning</span>
-            {unassignedCount} unassigned case{unassignedCount !== 1 ? 's' : ''} need attention
+    <Page>
+      <PageHeader
+        title="Case Management"
+        subtitle="Assign officers, track investigation status and manage case notes"
+      />
+
+      {unassignedCount > 0 && (
+        <Card style={{ padding: '13px 18px', marginBottom: '20px', background: '#FEF2F2', borderColor: '#FECACA' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+            <AlertTriangle size={16} color={TONE.red} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: '#991B1B', fontWeight: 600 }}>
+              {unassignedCount} unassigned case{unassignedCount !== 1 ? 's' : ''} need attention
+            </span>
           </div>
-        )}
-      </div>
+        </Card>
+      )}
 
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-        {(['active', 'resolved', 'all'] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{
-            padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 600,
-            backgroundColor: filter === f ? Colors.primary : Colors.surfaceContainerHigh,
-            color: filter === f ? Colors.onPrimary : Colors.onSurfaceVariant,
-            border: `1px solid ${filter === f ? Colors.primary : Colors.outlineVariant}`, transition: 'all 0.2s ease',
-          }}>
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
+      <Card style={{ padding: '10px', marginBottom: '20px', display: 'inline-block' }}>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {(['active', 'resolved', 'all'] as const).map(f => {
+            const active = filter === f
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                style={{
+                  padding: '7px 16px', borderRadius: '999px', cursor: 'pointer',
+                  fontSize: '12.5px', fontWeight: 600, fontFamily: FONT, textTransform: 'capitalize',
+                  background: active ? C.primary : 'transparent',
+                  color: active ? '#fff' : C.label,
+                  border: '1px solid transparent',
+                }}
+              >
+                {f}
+              </button>
+            )
+          })}
+        </div>
+      </Card>
 
-      <div className="r-grid-main-side" style={{ display: 'grid', gridTemplateColumns: selectedReport ? '1fr 460px' : '1fr', gap: '24px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="crm-split" style={{ display: 'grid', gridTemplateColumns: selectedReport ? 'minmax(0,1fr) 420px' : '1fr', gap: '20px', alignItems: 'start' }}>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px', color: Colors.onSurfaceVariant }}>
-              <span className="material-icons" style={{ fontSize: '48px', color: Colors.outline, display: 'block', marginBottom: '12px', animation: 'spin 1s linear infinite' }}>sync</span>
-              Loading cases…
-            </div>
+            [0, 1, 2].map(i => (
+              <Card key={i} style={{ padding: '18px' }}>
+                <Skeleton width="40%" height={16} />
+                <Skeleton width="60%" height={12} style={{ marginTop: '8px' }} />
+                <Skeleton width={110} height={20} radius={999} style={{ marginTop: '10px' }} />
+              </Card>
+            ))
           ) : reports.length === 0 ? (
-            <Card style={{ padding: '60px', textAlign: 'center' }}>
-              <span className="material-icons" style={{ fontSize: '48px', color: Colors.outline, display: 'block', marginBottom: '12px' }}>inbox</span>
-              <p style={{ color: Colors.onSurfaceVariant }}>No reports found</p>
-            </Card>
-          ) : reports.map(r => (
-            <Card key={r.id} onClick={() => handleSelectReport(r)} style={{
-              padding: '20px', cursor: 'pointer',
-              border: `1px solid ${selectedReport?.id === r.id ? Colors.primary + '66' : Colors.outlineVariant}`,
-              background: selectedReport?.id === r.id ? `${Colors.primary}10` : Colors.surfaceContainerLow,
-              transition: 'all 0.2s ease',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: '16px', color: Colors.onSurface, marginBottom: '4px' }}>
-                    {r.devices?.[0]?.make} {r.devices?.[0]?.model}
+            <Card><EmptyState icon={Inbox} title="No reports found" body="Cases matching this filter will show up here." /></Card>
+          ) : reports.map(r => {
+            const active = selectedReport?.id === r.id
+            return (
+              <Card
+                key={r.id}
+                onClick={() => handleSelectReport(r)}
+                style={{
+                  padding: '18px 20px', cursor: 'pointer',
+                  borderColor: active ? C.primary : undefined,
+                  background: active ? 'rgba(39,118,234,.04)' : undefined,
+                  transition: 'border-color .15s ease, background .15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: C.heading, marginBottom: '3px' }}>
+                      {r.devices?.[0]?.make} {r.devices?.[0]?.model}
+                    </div>
+                    <div style={{ fontSize: '12px', color: C.muted, marginBottom: '10px' }}>
+                      Serial {r.devices?.[0]?.serial_number} · {r.profiles?.[0]?.full_name}
+                    </div>
+                    <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <StatusBadge status={r.case_status || 'unassigned'} />
+                      {r.assigned_officer_id && (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 500,
+                          color: C.label, background: C.tile, border: '1px solid ' + C.tileBorder,
+                          borderRadius: '999px', padding: '3px 10px',
+                        }}>
+                          <User size={11} />
+                          {assignedOfficerName(r)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '13px', color: Colors.outline, marginBottom: '10px' }}>
-                    Serial: {r.devices?.[0]?.serial_number} · {r.profiles?.[0]?.full_name}
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <StatusBadge status={r.case_status || 'unassigned'} />
-                    {r.assigned_officer_id && (
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px',
-                        color: Colors.primary, background: `${Colors.primary}18`,
-                        border: `1px solid ${Colors.primary}44`, borderRadius: '100px', padding: '3px 10px',
-                      }}>
-                        <span className="material-icons" style={{ fontSize: '14px' }}>person</span>
-                        {assignedOfficerName(r)}
-                      </span>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: '11.5px', color: C.muted }}>
+                      {new Date(r.reported_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </div>
+                    {r.reward_amount != null && (
+                      <div style={{ fontSize: '13px', color: TONE.green, fontWeight: 700, marginTop: '4px' }}>
+                        ₹{r.reward_amount.toLocaleString('en-IN')}
+                      </div>
                     )}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: '12px', color: Colors.outline }}>
-                    {new Date(r.reported_at).toLocaleDateString()}
-                  </div>
-                  {r.reward_amount && (
-                    <div style={{ fontSize: '14px', color: Colors.secondary, fontWeight: 700, marginTop: '4px' }}>
-                      ₹{r.reward_amount.toLocaleString()}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            )
+          })}
         </div>
 
         {selectedReport && (
-          <Card style={{ padding: '0', overflow: 'hidden', alignSelf: 'flex-start', position: 'sticky', top: '24px' }}>
-            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${Colors.outlineVariant}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 700, fontSize: '18px', color: Colors.onSurface }}>Case Detail</div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button
-                  onClick={exportEvidencePDF}
-                  disabled={exportingPDF}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '10px', border: 'none', background: `${Colors.primary}22`, color: Colors.primary, cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}
-                >
-                  <span className="material-icons" style={{ fontSize: '16px' }}>{exportingPDF ? 'sync' : 'picture_as_pdf'}</span>
+          <Card style={{ position: 'sticky', top: '20px', overflow: 'hidden' }}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '16px 20px', borderBottom: '1px solid ' + C.border,
+            }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: C.heading, margin: 0 }}>Case Detail</h2>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <Button variant="ghost" icon={exportingPDF ? RefreshCw : FileDown} onClick={exportEvidencePDF} disabled={exportingPDF}>
                   {exportingPDF ? 'Generating…' : 'Export PDF'}
-                </button>
-                <button onClick={() => setSelectedReport(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: Colors.outline, padding: '4px' }}>
-                  <span className="material-icons">close</span>
+                </Button>
+                <button
+                  onClick={() => setSelectedReport(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, padding: '4px', lineHeight: 0 }}
+                >
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
-            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '78vh', overflowY: 'auto' }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '18px', maxHeight: '76vh', overflowY: 'auto' }}>
               <div>
-                <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Device</div>
-                <div style={{ fontSize: '20px', fontWeight: 700 }}>{selectedReport.devices?.[0]?.make} {selectedReport.devices?.[0]?.model}</div>
-                <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginTop: '2px' }}>Serial: {selectedReport.devices?.[0]?.serial_number}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Case Status</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {(Object.keys(STATUS_CONFIG) as CaseStatus[]).map(s => (
-                    <button key={s} onClick={() => updateCaseStatus(s)} style={{
-                      padding: '7px 14px', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
-                      background: selectedReport.case_status === s ? `${STATUS_CONFIG[s].color}33` : Colors.surfaceContainerHigh,
-                      color: selectedReport.case_status === s ? STATUS_CONFIG[s].color : Colors.onSurfaceVariant,
-                      border: `1px solid ${selectedReport.case_status === s ? STATUS_CONFIG[s].color + '66' : Colors.outlineVariant}`,
-                      transition: 'all 0.2s',
-                    }}>
-                      {STATUS_CONFIG[s].label}
-                    </button>
-                  ))}
+                <SectionLabel>Device</SectionLabel>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: C.heading }}>
+                  {selectedReport.devices?.[0]?.make} {selectedReport.devices?.[0]?.model}
+                </div>
+                <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>
+                  Serial {selectedReport.devices?.[0]?.serial_number}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Assign Officer</div>
-                <select value={selectedOfficerId} onChange={e => setSelectedOfficerId(e.target.value)} style={{
-                  width: '100%', padding: '10px 14px', borderRadius: '10px',
-                  background: Colors.surfaceContainerHigh, color: Colors.onSurface,
-                  border: `1px solid ${Colors.outlineVariant}`, fontSize: '14px',
-                  marginBottom: '10px', outline: 'none',
-                }}>
+                <SectionLabel>Case status</SectionLabel>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
+                  {(Object.keys(STATUS_CONFIG) as CaseStatus[]).map(s => {
+                    const cfg = STATUS_CONFIG[s]
+                    const active = selectedReport.case_status === s
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => updateCaseStatus(s)}
+                        style={{
+                          padding: '7px 13px', borderRadius: '999px', cursor: 'pointer',
+                          fontSize: '12px', fontWeight: 600, fontFamily: FONT,
+                          background: active ? cfg.tone + '14' : C.tile,
+                          color: active ? cfg.tone : C.label,
+                          border: '1px solid ' + (active ? cfg.tone + '44' : C.tileBorder),
+                        }}
+                      >
+                        {cfg.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <SectionLabel>Assign officer</SectionLabel>
+                <select
+                  className="crm-input"
+                  value={selectedOfficerId}
+                  onChange={e => setSelectedOfficerId(e.target.value)}
+                  style={{ ...inputStyle, cursor: 'pointer', marginBottom: '10px' }}
+                >
                   <option value="">— Unassigned —</option>
                   {officers.map(o => <option key={o.id} value={o.id}>{o.full_name || 'Officer'}</option>)}
                 </select>
-                <Button fullWidth onClick={assignOfficer} loading={assigningOfficer} disabled={!selectedOfficerId} icon="person_add">
-                  {selectedReport.assigned_officer_id ? 'Reassign Officer' : 'Assign Officer'}
+                <Button full icon={UserPlus} onClick={assignOfficer} disabled={assigningOfficer || !selectedOfficerId}>
+                  {assigningOfficer ? 'Assigning…' : selectedReport.assigned_officer_id ? 'Reassign Officer' : 'Assign Officer'}
                 </Button>
                 {selectedReport.assigned_officer_id && (
-                  <div style={{ fontSize: '13px', color: Colors.secondary, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className="material-icons" style={{ fontSize: '16px' }}>check_circle</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: TONE.green, marginTop: '8px', fontWeight: 500 }}>
+                    <CheckCircle2 size={14} />
                     Assigned to {assignedOfficerName(selectedReport)}
                   </div>
                 )}
               </div>
 
-              <div style={{ height: '1px', background: Colors.outlineVariant }} />
+              <div style={{ height: '1px', background: C.border }} />
 
               <div>
-                <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Owner</div>
-                <div style={{ fontSize: '15px', fontWeight: 600 }}>{selectedReport.profiles?.[0]?.full_name}</div>
+                <SectionLabel>Owner</SectionLabel>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: C.heading }}>{selectedReport.profiles?.[0]?.full_name}</div>
                 {selectedReport.profiles?.[0]?.phone_number && (
-                  <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, marginTop: '4px' }}>{selectedReport.profiles[0].phone_number}</div>
+                  <div style={{ fontSize: '12px', color: C.muted, marginTop: '3px' }}>{selectedReport.profiles[0].phone_number}</div>
                 )}
               </div>
 
               {selectedReport.incident_description && (
                 <div>
-                  <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '8px', textTransform: 'uppercase', fontWeight: 600 }}>Incident</div>
-                  <div style={{ fontSize: '14px', color: Colors.onSurface, lineHeight: '1.6', background: Colors.surfaceContainerHigh, borderRadius: '10px', padding: '12px' }}>
+                  <SectionLabel>Incident</SectionLabel>
+                  <div style={{
+                    fontSize: '13px', color: C.heading, lineHeight: 1.6,
+                    background: C.tile, border: '1px solid ' + C.tileBorder,
+                    borderRadius: '12px', padding: '12px 14px',
+                  }}>
                     {selectedReport.incident_description}
                   </div>
                 </div>
               )}
 
               <div>
-                <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Case Notes</div>
-                <textarea value={caseNotes} onChange={e => setCaseNotes(e.target.value)} placeholder="Add investigation notes, leads, observations…" rows={4} style={{
-                  width: '100%', padding: '12px 14px', borderRadius: '10px',
-                  background: Colors.surfaceContainerHigh, color: Colors.onSurface,
-                  border: `1px solid ${Colors.outlineVariant}`, fontSize: '14px',
-                  resize: 'vertical', outline: 'none', fontFamily: 'inherit',
-                  marginBottom: '10px', boxSizing: 'border-box',
-                }} />
-                <Button fullWidth onClick={saveCaseNotes} loading={savingNotes} variant="outline" icon="save">Save Notes</Button>
+                <SectionLabel>Case notes</SectionLabel>
+                <textarea
+                  className="crm-input"
+                  value={caseNotes}
+                  onChange={e => setCaseNotes(e.target.value)}
+                  placeholder="Add investigation notes, leads, observations…"
+                  rows={4}
+                  style={{ ...inputStyle, resize: 'vertical', marginBottom: '10px', lineHeight: 1.55 }}
+                />
+                <Button full variant="ghost" icon={Save} onClick={saveCaseNotes} disabled={savingNotes}>
+                  {savingNotes ? 'Saving…' : 'Save Notes'}
+                </Button>
               </div>
 
-              {selectedReport.reward_amount && (
+              {selectedReport.reward_amount != null && (
                 <div>
-                  <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Reward</div>
-                  <div style={{ fontSize: '28px', color: Colors.secondary, fontWeight: 700 }}>₹{selectedReport.reward_amount.toLocaleString()}</div>
+                  <SectionLabel>Reward</SectionLabel>
+                  <div style={{ fontSize: '22px', color: TONE.green, fontWeight: 700 }}>
+                    ₹{selectedReport.reward_amount.toLocaleString('en-IN')}
+                  </div>
                 </div>
               )}
 
               <div>
-                <div style={{ fontSize: '11px', color: Colors.outline, marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Timeline</div>
-                <div style={{ fontSize: '14px', marginBottom: '6px' }}>
-                  <span style={{ fontWeight: 600 }}>Reported:</span> {new Date(selectedReport.reported_at).toLocaleString()}
+                <SectionLabel>Timeline</SectionLabel>
+                <div style={{ fontSize: '12.5px', color: C.heading, marginBottom: '4px' }}>
+                  <span style={{ fontWeight: 600 }}>Reported:</span> {new Date(selectedReport.reported_at).toLocaleString('en-IN')}
                 </div>
                 {selectedReport.resolved_at && (
-                  <div style={{ fontSize: '14px', color: Colors.secondary }}>
-                    <span style={{ fontWeight: 600 }}>Resolved:</span> {new Date(selectedReport.resolved_at).toLocaleString()}
+                  <div style={{ fontSize: '12.5px', color: TONE.green }}>
+                    <span style={{ fontWeight: 600 }}>Resolved:</span> {new Date(selectedReport.resolved_at).toLocaleString('en-IN')}
                   </div>
                 )}
               </div>
@@ -460,6 +502,17 @@ Case Notes: ${selectedReport.case_notes || 'None'}
           </Card>
         )}
       </div>
+    </Page>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: '11px', fontWeight: 700, color: C.label,
+      letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '8px',
+    }}>
+      {children}
     </div>
   )
 }
