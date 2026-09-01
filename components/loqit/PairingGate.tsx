@@ -14,7 +14,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { Colors } from '../../constants/colors';
 import { FontFamily } from '../../constants/typography';
 import { GradientButton } from '../ui/GradientButton';
-import { StructuredLoader } from '../ui/StructuredLoader';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -22,11 +21,19 @@ interface PairingGateProps {
   handsetIdentifier: string;
   onPaired: (deviceId: string) => void;
   children: React.ReactNode;
+  /** Reports this gate's own loading state up to the root layout, which folds
+   * it into the single consolidated boot screen instead of this component
+   * showing its own separate full-screen loader. */
+  onLoadingChange?: (loading: boolean) => void;
 }
 
-export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGateProps) {
+export function PairingGate({ handsetIdentifier, onPaired, children, onLoadingChange }: PairingGateProps) {
   const { session, profile } = useAuth();
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
   const [pairedDeviceId, setPairedDeviceId] = useState<string | null>(null);
   const [userDevices, setUserDevices] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -124,16 +131,13 @@ export function PairingGate({ handsetIdentifier, onPaired, children }: PairingGa
     }
   };
 
-  if (loading && !showModal && !pairedDeviceId) {
-    return (
-      <StructuredLoader
-        colors={Colors}
-        variant="pairing"
-        message="Preparing device pairing..."
-      />
-    );
-  }
-
+  // Children are rendered unconditionally, even while loading. `children` is
+  // the app's <Slot /> — returning null here unmounted the entire navigator,
+  // which then rebuilt from scratch at `/` and had to re-route into (tabs),
+  // showing up as a blank flash. Any re-check of pairing (e.g. the handset id
+  // changing) would trigger it. The root layout's single boot screen already
+  // covers the screen during this window, so there is nothing to gain by
+  // tearing the tree down.
   return (
     <>
       {children}

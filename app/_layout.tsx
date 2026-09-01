@@ -9,7 +9,7 @@ import { AuthProvider, useAuth } from '../hooks/useAuth'
 import { ThemeProvider } from '../hooks/useTheme'
 import { supabase } from '../lib/supabase'
 import { LostDeviceLock } from '../components/loqit/LostDeviceLock'
-import { StructuredLoader } from '../components/ui/StructuredLoader'
+import { BootScreen } from '../components/ui/BootScreen'
 import { useLostDeviceMonitor } from '../hooks/useLostDeviceMonitor'
 
 import { FontFamily } from '../constants/typography'
@@ -21,6 +21,17 @@ import { completeSessionFromUrl } from '../lib/authSession'
 import '../services/backgroundBleTask'
 import '../services/protectionTask'
 import '../services/lostTrackingTask'
+
+// Render's free tier sleeps after ~15 minutes idle and takes 30-60s to wake on
+// the first request. Ping it the instant the JS bundle loads (before the user
+// even reaches a login button) so the wake-up overlaps with app startup and
+// whatever the user does before their first real network call, instead of
+// happening cold in the middle of sign-in.
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:4000').replace(/\/$/, '')
+void fetch(`${API_URL}/health`).catch(() => {
+  // Best-effort only — a failed wake-up ping isn't itself an error, the real
+  // request later will surface any actual connectivity problem.
+})
 
 async function getHandsetIdentifier() {
   let id = await AsyncStorage.getItem('loqit_handset_id')
@@ -34,7 +45,7 @@ async function getHandsetIdentifier() {
 }
 
 function AuthGate() {
-  const { session, loading, profile, isLoggingIn } = useAuth()
+  const { session, loading, profile, isLoggingIn, refreshProfile } = useAuth()
   const segments = useSegments()
   const router = useRouter()
 
@@ -116,18 +127,38 @@ function AuthGate() {
       return
     }
 
-    const timeout = setTimeout(() => {
-      setProfileWaitExpired(true)
-    }, 10000)
+    // Render's free tier can take 30-60s to wake from a cold start, and the
+    // profile fetch is the first authenticated request after sign-in — it can
+    // land squarely in that window. One retry partway through (instead of a
+    // single fixed deadline) means a slow-but-alive server gets a second
+    // chance before we give up and sign the user back out.
+    const retry = setTimeout(() => {
+      console.log('[AuthGate] Profile still not loaded after 15s — retrying once before giving up.')
+      refreshProfile().catch(() => {})
+    }, 15000)
 
-    return () => clearTimeout(timeout)
-  }, [isLoggingIn, isProcessingDeepLink, loading, profile, session])
+    const giveUp = setTimeout(() => {
+      setProfileWaitExpired(true)
+    }, 45000)
+
+    return () => {
+      clearTimeout(retry)
+      clearTimeout(giveUp)
+    }
+  }, [isLoggingIn, isProcessingDeepLink, loading, profile, session, refreshProfile])
 
   useEffect(() => {
     // DO NOT REDIRECT if we are still processing a deep link
     if (loading || isProcessingDeepLink || isLoggingIn) return;
 
     const currentGroup = segments[0]
+    // Expo Router transiently reports empty segments mid-navigation. Treating
+    // that as a real location made the redirect below re-fire, which caused
+    // another transient empty, which fired it again — the app replaced itself
+    // into (tabs) three times on every launch, and each replace resets the
+    // navigator, showing up as a blank flash. Routing decisions need a settled
+    // location; app/index.tsx handles the genuine bare-`/` case with a Redirect.
+    if (!currentGroup) return
     const inAuthGroup = currentGroup === '(auth)'
     const inTabsGroup = currentGroup === '(tabs)'
     const isOtpScreen = segments[1] === 'otp-verify'
@@ -180,7 +211,7 @@ function AuthGate() {
       }
 
       // If verified but stuck in Auth, go to Tabs
-      if (isVerified && (inAuthGroup || currentGroup === 'auth' || !currentGroup)) {
+      if (isVerified && (inAuthGroup || currentGroup === 'auth')) {
         if (!inTabsGroup && !isProcessingDeepLink && !isLoggingIn) {
           console.log('[AuthGate] Moving verified user to Tabs...');
           AsyncStorage.setItem('loqit_just_logged_in', 'true');
@@ -191,6 +222,9 @@ function AuthGate() {
   }, [loading, router, segments, session, profile, isLoggingIn, isProcessingDeepLink, profileWaitExpired])
 
   const [handsetIdentifier, setHandsetIdentifier] = useState<string | null>(null)
+  // PairingGate no longer renders its own full-screen loader — it reports its
+  // loading state here instead, so it folds into the one boot screen below.
+  const [pairingLoading, setPairingLoading] = useState(true)
 
   useEffect(() => {
     const getIdentity = async () => {
@@ -205,12 +239,18 @@ function AuthGate() {
     
     getIdentity()
 
-    // Emergency Timeout: If device ID is still null after 5 seconds, use a fallback
+    // Emergency Timeout: If device ID is still null after 5 seconds, use a fallback.
+    // The check must happen inside the state updater — this effect runs once with
+    // [] deps, so its closure captures handsetIdentifier as null permanently and
+    // the old `if (!handsetIdentifier)` was ALWAYS true. That overwrote the real,
+    // already-resolved ID with a throwaway one on every single launch, which in
+    // turn re-triggered PairingGate and blanked the navigator.
     const safetyTimer = setTimeout(() => {
-      if (!handsetIdentifier) {
+      setHandsetIdentifier((current) => {
+        if (current) return current
         console.warn('[AuthGate] Handset ID hung. Using safety fallback.')
-        setHandsetIdentifier(`hset-safe-${Date.now()}`)
-      }
+        return `hset-safe-${Date.now()}`
+      })
     }, 5000)
 
     return () => clearTimeout(safetyTimer)
@@ -231,6 +271,32 @@ function AuthGate() {
     }
   }, [loading, hasBootstrapped])
 
+  // Latches true the first time we actually land inside the app. Used so the
+  // boot overlay can stay up across the whole "session exists but we haven't
+  // reached (tabs) yet" window — during which the (auth) onboarding screen is
+  // really mounted and would otherwise be visible for the ~1s the profile
+  // fetch takes — without ever re-covering the screen later when the user
+  // navigates to a non-tab route like /settings.
+  const [hasEnteredApp, setHasEnteredApp] = useState(false)
+  useEffect(() => {
+    if (segments[0] === '(tabs)') setHasEnteredApp(true)
+  }, [segments])
+
+  // Re-arm on sign-out. Without this the latch stays true for the life of the
+  // JS runtime, so a sign-out followed by a sign-in (Google included) left the
+  // whole sign-in -> dashboard window uncovered and the (auth) screens showed
+  // through mid-transition.
+  useEffect(() => {
+    if (!session) setHasEnteredApp(false)
+  }, [session])
+
+  // A signed-in user who is on their way into the app but hasn't arrived yet.
+  // Google users are verified implicitly; everyone else needs email_verified.
+  const isHeadedIntoApp = !!session && (
+    session.user?.app_metadata?.provider === 'google' || !profile || !!profile.email_verified
+  )
+  const waitingForFirstRoute = !hasEnteredApp && isHeadedIntoApp && !profileWaitExpired
+
   // Cold boot only: checking the stored session before we've ever settled.
   const waitingForInitialSession = !hasBootstrapped && loading && !session
   // Explicit user action: a login / deep-link handoff is in flight with no session yet.
@@ -238,9 +304,30 @@ function AuthGate() {
   const waitingForLoginCallback = (isLoggingIn || isProcessingDeepLink) && !session
   // Cold boot only: have a session but the device identity hasn't resolved yet.
   const waitingForDeviceIdentity = !hasBootstrapped && !!session && !handsetIdentifier
+  // Cold boot / login only: session exists but PairingGate is still deciding
+  // whether this handset is already linked to one of the user's devices.
+  const waitingForPairingCheck = !hasBootstrapped && !!session && !!handsetIdentifier && pairingLoading
   const isLoadingState = !forceHideBootstrapOverlay && (
-    waitingForInitialSession || waitingForLoginCallback || waitingForDeviceIdentity
+    waitingForInitialSession || waitingForLoginCallback || waitingForDeviceIdentity ||
+    waitingForPairingCheck || waitingForFirstRoute
   );
+
+  // One continuous stage number drives a single progress bar instead of four
+  // different screens/messages swapping in and out as each piece of state
+  // settles — checking session -> waiting for profile -> resolving this
+  // handset's identity -> checking device pairing -> done.
+  const bootStage = !session ? 0
+    : !profile ? 1
+    : !handsetIdentifier ? 2
+    : pairingLoading ? 3
+    : 4
+  const bootStageMessage = [
+    'Checking session…',
+    'Loading your profile…',
+    'Preparing this device…',
+    'Checking device pairing…',
+    'Ready',
+  ][bootStage]
 
   return (
     <PairingGate 
@@ -249,6 +336,7 @@ function AuthGate() {
         console.log(`[LOQIT] Handset successfully paired with device: ${deviceId}`);
         rebootstrap();
       }}
+      onLoadingChange={setPairingLoading}
     >
       <Slot />
       {lockScreenActive && lockDeviceId && (
@@ -260,28 +348,25 @@ function AuthGate() {
       )}
       
       {isLoadingState && (
-        <StructuredLoader
-          overlay
-          variant="app"
-          colors={Colors}
-          message={(isLoggingIn || isProcessingDeepLink) ? 'Syncing profile...' : loading ? 'Checking session...' : 'Preparing device...'}
-        >
-          <Pressable
-            onPress={async () => {
-              setForceHideBootstrapOverlay(true)
-              const { data: { session: latestSession } } = await supabase.auth.getSession()
-              const sessionEmail = latestSession?.user?.email
-              if (latestSession && profile?.email_verified) { router.replace('/(tabs)') }
-              else if (sessionEmail) { router.replace({ pathname: '/(auth)/otp-verify', params: { email: sessionEmail } }) }
-              else { router.replace('/(auth)/onboarding') }
-            }}
-            style={styles.manualContinueButton}
-          >
-            <Text style={styles.manualContinueText}>
-              App unresponsive? Continue manually
-            </Text>
-          </Pressable>
-        </StructuredLoader>
+        <View style={StyleSheet.absoluteFill}>
+          <BootScreen message={bootStageMessage} progress={bootStage / 4}>
+            <Pressable
+              onPress={async () => {
+                setForceHideBootstrapOverlay(true)
+                const { data: { session: latestSession } } = await supabase.auth.getSession()
+                const sessionEmail = latestSession?.user?.email
+                if (latestSession && profile?.email_verified) { router.replace('/(tabs)') }
+                else if (sessionEmail) { router.replace({ pathname: '/(auth)/otp-verify', params: { email: sessionEmail } }) }
+                else { router.replace('/(auth)/onboarding') }
+              }}
+              style={styles.manualContinueButton}
+            >
+              <Text style={styles.manualContinueText}>
+                App unresponsive? Continue manually
+              </Text>
+            </Pressable>
+          </BootScreen>
+        </View>
       )}
     </PairingGate>
   )

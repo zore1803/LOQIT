@@ -15,7 +15,6 @@ import * as Linking from 'expo-linking'
 
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
-import { completeSessionFromUrl } from '../lib/authSession'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -478,28 +477,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
           const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
           console.log('[Auth-DEBUG] Browser result type:', res.type)
 
-          // CRITICAL: When the auth browser returns 'success', res.url carries the
-          // access_token / code from the redirect. The global Linking listener in
-          // _layout.tsx usually does NOT fire for URLs captured by
-          // openAuthSessionAsync, and the mobile client has detectSessionInUrl:false,
-          // so nothing else will establish the session. Complete it here directly.
-          if (res.type === 'success' && res.url) {
-            const result = await completeSessionFromUrl(res.url)
-            if (result.status === 'completed') {
-              console.log('[Auth-DEBUG] Completed session from redirect URL.')
-            } else if (result.status === 'no-credentials') {
-              console.warn('[Auth-DEBUG] Redirect URL had no token or code.')
-            } else {
-              console.warn('[Auth-DEBUG] Failed to complete session from redirect URL:', result.error)
-            }
-          }
-
-          // If we completed the session above, getSession() resolves from local
-          // storage immediately — no polling needed. Only when the browser was
-          // dismissed (Android can return 'dismiss'/'cancel' even on success,
-          // with the deep link arriving via _layout.tsx instead) do we briefly
-          // poll to let that other handler finish.
-          const maxAttempts = res.type === 'success' ? 1 : 20; // 0s vs 2s worst case
+          // On this device/OS combo, the global Linking listener in _layout.tsx
+          // (app/_layout.tsx's handleLoginUrl) reliably fires for this same
+          // redirect *in addition to* openAuthSessionAsync resolving — contrary
+          // to what the old comment here assumed. Completing the session from
+          // both places raced: whichever finished second could observe a
+          // half-updated auth-client state and, via a subsequent getSession()
+          // call, trigger a token refresh against a refresh_token the other
+          // path had just rotated — which fails and wipes the session that was
+          // only just set. So this function no longer completes the session
+          // itself; app/_layout.tsx's Linking listener is the single source of
+          // truth for the redirect, and this just waits for it to land.
+          const maxAttempts = res.type === 'success' ? 20 : 20; // up to 2s either way
           for (let attempts = 0; attempts < maxAttempts; attempts++) {
             const { data: { session: currentSession } } = await supabase.auth.getSession();
             if (currentSession) {

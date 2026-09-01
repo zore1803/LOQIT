@@ -13,6 +13,11 @@ type StructuredLoaderProps = PropsWithChildren<{
   overlay?: boolean
   variant?: 'app' | 'dashboard' | 'pairing'
   style?: ViewStyle
+  /** 0-1. When provided, renders a determinate progress bar under the message
+   * instead of just a spinner — used for the single consolidated boot loader
+   * so it reads as one continuous screen finishing, not several different
+   * screens flashing past. */
+  progress?: number
 }>
 
 function LoaderBlock({
@@ -121,6 +126,7 @@ export function StructuredLoader({
   variant = 'dashboard',
   style,
   children,
+  progress,
 }: StructuredLoaderProps) {
   const isDark = colors.background.toLowerCase() !== '#ffffff'
   const compact = variant !== 'dashboard'
@@ -156,9 +162,18 @@ export function StructuredLoader({
       {(message || children) && (
         <View style={styles.statusWrap}>
           {message ? (
-            <View style={[styles.statusPill, { backgroundColor: colors.surfaceContainer, borderColor: colors.outlineVariant }]}>
-              <LoaderBlock colors={colors} width={28} height={28} radius={14} />
+            <View style={[styles.statusCard, { backgroundColor: colors.surfaceContainer, borderColor: colors.outlineVariant }]}>
               <Text style={[styles.statusText, { color: colors.onSurfaceVariant }]}>{message}</Text>
+              {typeof progress === 'number' && (
+                <View style={[styles.progressTrack, { backgroundColor: colors.surfaceContainerHighest }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { backgroundColor: colors.primary, width: `${Math.max(6, Math.min(100, progress * 100))}%` },
+                    ]}
+                  />
+                </View>
+              )}
             </View>
           ) : null}
           {children}
@@ -282,13 +297,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 28,
   },
-  statusPill: {
-    minHeight: 56,
+  statusCard: {
+    minWidth: 220,
     maxWidth: 320,
     borderRadius: 18,
     borderWidth: 1,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     alignItems: 'center',
     gap: 12,
   },
@@ -297,5 +312,15 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyMedium,
     fontSize: 13,
     textAlign: 'center',
+  },
+  progressTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
   },
 })

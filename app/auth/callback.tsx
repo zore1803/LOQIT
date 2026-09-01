@@ -1,102 +1,36 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import * as Linking from 'expo-linking'
-import { useRouter } from 'expo-router'
-import { useAuth } from '../../hooks/useAuth'
-import { supabase } from '../../lib/supabase'
-import { db } from '../../lib/db'
 import { completeSessionFromUrl } from '../../lib/authSession'
-import { Colors } from '../../constants/colors'
-import { StructuredLoader } from '../../components/ui/StructuredLoader'
 
+/**
+ * Landing screen for the loqit://auth/callback deep link. Android's own
+ * file-based routing navigates here independently of the global Linking
+ * listener in app/_layout.tsx (handleLoginUrl) — both fire on the same
+ * redirect. That listener is the reliable, single source of truth for
+ * completing the OAuth exchange and for deciding where to route once the
+ * session and profile are ready (with its own 45s/retry budget for a slow
+ * Render cold start).
+ *
+ * This screen used to make that same decision independently, using its own
+ * shorter timeout — and would sign the user out if `profile` was merely still
+ * loading, mistaking "not loaded yet" for "no account exists." That raced
+ * with the real profile fetch and wiped sessions that were actually fine.
+ * It now does nothing but wait: AuthGate (app/_layout.tsx) owns navigation
+ * away from this screen once auth actually settles, and its single boot
+ * screen covers this whole window so there's nothing to render here.
+ */
 export default function AuthCallback() {
-  const router = useRouter()
-  const { session, profile, loading } = useAuth()
-  const [message, setMessage] = useState('Securing LOQIT Connection...')
-
   useEffect(() => {
-    let cancelled = false
+    // Harmless if app/_layout.tsx's listener already completed the exchange —
+    // completeSessionFromUrl dedupes by URL and returns the cached result.
+    // Only useful as a fallback if this screen is somehow reached first.
+    Linking.getInitialURL().then((url) => {
+      if (url) void completeSessionFromUrl(url)
+    })
+  }, [])
 
-    const completeOAuth = async () => {
-      const url = await Linking.getInitialURL()
-      if (!url) return
-      const result = await completeSessionFromUrl(url)
-      if (result.status === 'error') {
-        console.error('[AuthCallback] OAuth completion failed:', result.error)
-      }
-    }
-
-    void completeOAuth()
-
-    const fallback = setTimeout(async () => {
-      if (cancelled) return
-      const { data: { session: latestSession } } = await supabase.auth.getSession()
-      if (!latestSession) {
-        router.replace('/(auth)/sign-in')
-        return
-      }
-
-      const { data: latestProfile, error } = await db
-        .from('profiles')
-        .select('id, email_verified')
-        .eq('id', latestSession.user.id)
-        .maybeSingle()
-
-      if (cancelled) return
-
-      if (error) {
-        console.error('[AuthCallback] Profile lookup failed:', error)
-        setMessage('Unable to load your LOQIT profile. Please sign in again.')
-        setTimeout(() => router.replace('/(auth)/sign-in'), 1200)
-        return
-      }
-
-      if (latestProfile) {
-        const isGoogleUser = latestSession.user.app_metadata?.provider === 'google'
-
-        if (isGoogleUser || latestProfile.email_verified) {
-          router.replace('/(tabs)')
-        } else if (latestSession.user.email) {
-          router.replace({ pathname: '/(auth)/otp-verify', params: { email: latestSession.user.email } })
-        }
-        return
-      }
-
-      console.warn(`[AuthCallback] No LOQIT profile exists for OAuth user ${latestSession.user.id} (${latestSession.user.email || 'unknown email'}).`)
-      await supabase.auth.signOut()
-      setMessage('No LOQIT account is linked with this Google email.')
-      setTimeout(() => router.replace('/(auth)/sign-in'), 1600)
-    }, 2500)
-
-    return () => {
-      cancelled = true
-      clearTimeout(fallback)
-    }
-  }, [router])
-
-  useEffect(() => {
-    if (loading || !session) return
-
-    const isGoogleUser = session.user.app_metadata?.provider === 'google'
-
-    if (profile && (isGoogleUser || profile.email_verified)) {
-      router.replace('/(tabs)')
-    } else if (session.user.email) {
-      if (isGoogleUser) {
-        setMessage('No LOQIT account is linked with this Google email.')
-        supabase.auth.signOut().finally(() => {
-          setTimeout(() => router.replace('/(auth)/sign-in'), 1200)
-        })
-      } else {
-        router.replace({ pathname: '/(auth)/otp-verify', params: { email: session.user.email } })
-      }
-    }
-  }, [loading, profile, router, session])
-
-  return (
-    <StructuredLoader
-      colors={Colors}
-      variant="app"
-      message={message}
-    />
-  )
+  // Renders nothing — the root layout's single boot screen (app/_layout.tsx)
+  // already covers the screen for this entire window, so this doesn't need
+  // its own competing loader.
+  return null
 }
