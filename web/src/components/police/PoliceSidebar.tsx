@@ -66,7 +66,7 @@ export function PoliceSidebar() {
         onClick={() => navigate('/police')}
         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', marginBottom: '8px', cursor: 'pointer', position: 'relative', zIndex: 1 }}
       >
-        <img src="/logo.png" alt="LOQIT" style={{ height: '28px', objectFit: 'contain', filter: 'var(--logo-filter)' }} />
+        <span style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '0.5px', color: Colors.onSurface }}>LOQIT</span>
       </div>
 
       {/* Police Portal badge */}

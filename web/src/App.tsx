@@ -56,16 +56,13 @@ function Spinner() {
           <span className="material-icons" style={{ fontSize: '40px', color: Colors.primary }}>shield</span>
         </div>
 
-        {/* LOQIT Logo */}
-        <img
-          src="/logo.png"
-          alt="LOQIT"
-          style={{
-            height: '28px', width: 'auto', objectFit: 'contain',
-            filter: 'var(--logo-filter)',
-            margin: '0 auto',
-          }}
-        />
+        {/* LOQIT wordmark */}
+        <div style={{
+          fontSize: '20px', fontWeight: 700, letterSpacing: '1px',
+          color: Colors.onSurface, margin: '0 auto',
+        }}>
+          LOQIT
+        </div>
 
         {/* Authenticating Text */}
         <div style={{
@@ -148,7 +145,7 @@ function AppLayout({ children, isPolice, fullHeight }: { children: React.ReactNo
             >
               <span className="material-icons" style={{ fontSize: '26px' }}>menu</span>
             </button>
-            <img src="/logo.png" alt="LOQIT" style={{ height: '24px', width: 'auto', objectFit: 'contain', filter: 'var(--logo-filter)' }} />
+            <span style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '0.5px', color: Colors.onSurface }}>LOQIT</span>
             <ThemeToggle style={{ marginLeft: 'auto' }} />
           </header>
 

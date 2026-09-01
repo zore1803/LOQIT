@@ -98,7 +98,7 @@ export function AuthCallbackPage() {
       backgroundColor: Colors.background,
       gap: '20px',
     }}>
-      <img src="/logo.png" alt="LOQIT" style={{ height: '64px', width: 'auto', marginBottom: '8px' }} />
+      <div style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '1.5px', marginBottom: '8px', color: Colors.onSurface }}>LOQIT</div>
       <span
         className="material-icons"
         style={{ fontSize: '48px', color: Colors.primary, animation: 'spin 1s linear infinite' }}

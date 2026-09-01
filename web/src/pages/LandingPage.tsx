@@ -312,7 +312,7 @@ export function LandingPage() {
           style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
-          <img src="/logo.png" alt="LOQIT" style={{ height: '34px', objectFit: 'contain', filter: 'var(--logo-filter)' }} />
+          <span style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '1px', color: Colors.onSurface }}>LOQIT</span>
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -372,20 +372,6 @@ export function LandingPage() {
             <BLEParticleCanvas />
           </div>
           
-          {/* Logo Pattern placed BEHIND the text */}
-          <div style={{
-            position: 'absolute',
-            inset: '5%',
-            backgroundImage: 'url(/logo-pattern.png)',
-            backgroundSize: 'contain',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            opacity: 0.22,
-            filter: 'var(--logo-filter)',
-            pointerEvents: 'none',
-            zIndex: -1
-          }} />
-
           {/* Canvas fills the panel */}
           <ParticleMorphCanvas
             particleCount={2800}

@@ -282,7 +282,7 @@ export function LoginPage({ initialMode = 'civilian' }: { initialMode?: 'civilia
         {/* Brand */}
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '40px', cursor: 'pointer' }} onClick={() => navigate('/')}>
-            <img src="/logo.png" alt="LOQIT" style={{ height: '60px', width: 'auto', objectFit: 'contain' }} />
+            <div style={{ fontSize: '30px', fontWeight: 800, letterSpacing: '2px', color: Colors.onSurface }}>LOQIT</div>
           </div>
 
           <h1 style={{ fontSize: '42px', fontWeight: 900, lineHeight: 1.15, marginBottom: '16px', color: Colors.onSurface }}>

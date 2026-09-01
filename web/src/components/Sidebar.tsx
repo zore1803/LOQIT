@@ -103,7 +103,7 @@ export function Sidebar() {
           borderRadius: '10px',
         }}
       >
-        <img src="/logo.png" alt="LOQIT" style={{ height: '26px', width: 'auto', objectFit: 'contain', filter: 'var(--logo-filter)' }} />
+        <span style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '0.5px', color: C.heading }}>LOQIT</span>
       </div>
 
       <div style={{

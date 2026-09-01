@@ -81,7 +81,7 @@ export function ResetPasswordPage() {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <img src="/logo.png" alt="LOQIT" style={{ height: '52px', marginBottom: '20px' }} />
+          <div style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '2px', marginBottom: '20px', color: Colors.onSurface }}>LOQIT</div>
           <h1 style={{ fontSize: '26px', fontWeight: 800, color: Colors.onSurface, marginBottom: '8px' }}>
             Set New Password
           </h1>

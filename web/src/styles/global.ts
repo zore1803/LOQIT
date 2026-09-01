@@ -27,7 +27,6 @@ export const globalStyles = `
     --color-errorContainer: #FEF2F2;
     --color-outline: #9CA3AF;
     --color-outlineVariant: #F2F2F7;
-    --logo-filter: brightness(1) saturate(1);
 
     /* ── DataCircles CRM design tokens ────────────────────────────────────
        Matched to the CRM frontend so LOQIT's dashboard reads as the same
@@ -88,7 +87,6 @@ export const globalStyles = `
     --color-errorContainer: #93000a;
     --color-outline: #8b919f;
     --color-outlineVariant: #414753;
-    --logo-filter: brightness(1.8) saturate(1.2);
   }
 
   * {
