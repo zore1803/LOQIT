@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { Colors } from '../../lib/colors'
 import { db } from '../../lib/db'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
 
 type AnalyticsData = {
   devicesByStatus: { status: string; count: number }[]

@@ -1,9 +1,17 @@
-import { CSSProperties, useEffect, useState } from 'react'
-import { Colors } from '../../lib/colors'
+import { useEffect, useState } from 'react'
+import {
+  Smartphone, FileWarning, MessagesSquare, CheckCircle2, Radio, Users,
+  MapPin, Shield, FileText, Search, ChevronRight, AlertCircle,
+} from 'lucide-react'
+import { LucideIcon } from 'lucide-react'
 import { db } from '../../lib/db'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api'
+import {
+  C, TONE, FONT, Page, PageHeader, Card, CardHeader,
+  SummaryCard, Skeleton, EmptyState, IconTile,
+} from '../../components/crm'
 
 type DeviceLocation = {
   id: string
@@ -30,32 +38,24 @@ type RecentActivity = {
   title: string
   description: string
   timestamp: string
-  icon: string
-  color: string
+  icon: LucideIcon
+  tone: string
 }
 
-const containerStyle: CSSProperties = { padding: '32px 40px', maxWidth: '1400px', margin: '0 auto' }
 const mapContainerUiStyle = { width: '100%', height: '100%' }
 
-const darkMapStyle = [
-  { elementType: 'geometry', stylers: [{ color: '#1a1d24' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1d24' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] },
-  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
-  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
-  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
-  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
-  { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
-  { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] },
+// Light basemap so the map matches the rest of the portal.
+const lightMapStyle = [
+  { elementType: 'geometry', stylers: [{ color: '#F7F8FA' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#6B7280' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#E5E7EB' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#F2F2F7' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9CA3AF' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#DBEAFE' }] },
 ]
 
 function getGreeting() {
@@ -65,57 +65,13 @@ function getGreeting() {
   return 'Good evening'
 }
 
-function StatCard({ label, value, icon, color, path, loading }: {
-  label: string; value: number | string; icon: string; color: string; path?: string; loading: boolean
-}) {
-  const [hovered, setHovered] = useState(false)
-  const navigate = useNavigate()
-  return (
-    <div
-      onClick={() => path && navigate(path)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: hovered
-          ? `linear-gradient(135deg, ${Colors.surfaceContainerHigh}, ${Colors.surfaceContainer})`
-          : Colors.surfaceContainer,
-        border: `1px solid ${hovered ? color + '50' : Colors.outlineVariant}`,
-        borderRadius: '16px',
-        padding: '22px 24px',
-        display: 'flex', alignItems: 'center', gap: '16px',
-        cursor: path ? 'pointer' : 'default',
-        transition: 'all 0.25s ease',
-        boxShadow: hovered ? `0 8px 32px ${color}20, 0 0 0 1px ${color}20` : '0 1px 4px rgba(0,0,0,0.1)',
-        transform: hovered ? 'translateY(-2px)' : 'none',
-        position: 'relative', overflow: 'hidden',
-      }}
-    >
-      <div style={{
-        position: 'absolute', top: 0, right: 0, width: '80px', height: '80px',
-        background: `radial-gradient(circle at 100% 0%, ${color}12 0%, transparent 70%)`,
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        width: '48px', height: '48px', borderRadius: '14px', flexShrink: 0,
-        background: `linear-gradient(135deg, ${color}22, ${color}10)`,
-        border: `1.5px solid ${color}35`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: `0 0 16px ${color}20`,
-      }}>
-        <span className="material-icons" style={{ fontSize: '22px', color }}>{icon}</span>
-      </div>
-      <div>
-        <div style={{ fontSize: '30px', fontWeight: 900, color: Colors.onSurface, lineHeight: 1, letterSpacing: '-1px' }}>
-          {loading ? (
-            <span className="material-icons" style={{ fontSize: '22px', animation: 'spin 1s linear infinite', color: Colors.outline }}>sync</span>
-          ) : value}
-        </div>
-        <div style={{ fontSize: '12px', color: Colors.onSurfaceVariant, fontWeight: 600, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          {label}
-        </div>
-      </div>
-    </div>
-  )
+function timeAgo(iso: string) {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return mins + 'm ago'
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return hours + 'h ago'
+  return Math.floor(hours / 24) + 'd ago'
 }
 
 export function PoliceDashboardPage() {
@@ -208,8 +164,8 @@ export function PoliceDashboardPage() {
         title: 'New Lost Report',
         description: `${report.devices?.make} ${report.devices?.model}`,
         timestamp: report.reported_at,
-        icon: 'report',
-        color: Colors.error,
+        icon: FileWarning,
+        tone: TONE.red,
       })
     })
 
@@ -226,8 +182,8 @@ export function PoliceDashboardPage() {
         title: 'Device Detected',
         description: `${beacon.devices?.make} ${beacon.devices?.model}`,
         timestamp: beacon.reported_at,
-        icon: 'my_location',
-        color: Colors.secondary,
+        icon: Radio,
+        tone: TONE.green,
       })
     })
 
@@ -249,8 +205,8 @@ export function PoliceDashboardPage() {
         title: labels[ev.event_type] || 'Tamper Alert',
         description: `Device: ${ev.devices?.make} ${ev.devices?.model}`,
         timestamp: ev.triggered_at,
-        icon: 'security',
-        color: ev.event_type === 'sim_change' ? Colors.error : '#f59e0b',
+        icon: Shield,
+        tone: ev.event_type === 'sim_change' ? TONE.red : TONE.amber,
       })
     })
 
@@ -324,266 +280,177 @@ export function PoliceDashboardPage() {
     setLostDevices(Array.from(devicesMap.values()))
   }
 
-  if (loading) {
-    return (
-      <div style={{ ...containerStyle, textAlign: 'center', paddingTop: '120px' }}>
-        <span className="material-icons" style={{ fontSize: '48px', color: Colors.primary, animation: 'spin 1s linear infinite' }}>
-          sync
-        </span>
-        <p style={{ marginTop: '16px', color: Colors.onSurfaceVariant }}>Loading dashboard...</p>
-      </div>
-    )
-  }
+
+  const quickActions: Array<{ label: string; icon: LucideIcon; path: string; desc: string }> = [
+    { label: 'Search a device', icon: Search, path: '/police/search', desc: 'Look up a serial or LOQIT key' },
+    { label: 'Open reports', icon: FileText, path: '/police/reports', desc: 'Case files and printable summaries' },
+    { label: 'Monitor chats', icon: MessagesSquare, path: '/police/chats', desc: 'Owner and finder conversations' },
+  ]
 
   return (
-    <div style={containerStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
-        <div>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: Colors.primary, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>
-            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </div>
-          <h1 style={{
-            fontSize: '30px', fontWeight: 900, margin: 0, letterSpacing: '-0.5px',
-            background: `linear-gradient(135deg, ${Colors.onSurface} 40%, ${Colors.primary} 100%)`,
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>
-            {getGreeting()}, Officer {profile?.full_name?.split(' ')[0] || ''} 👋
-          </h1>
-          <p style={{ fontSize: '14px', color: Colors.onSurfaceVariant, margin: '6px 0 0' }}>
-            Real-time monitoring and city-wide device recovery operations.
-          </p>
-        </div>
+    <Page>
+      <PageHeader
+        title={getGreeting() + (profile?.full_name ? ', ' + profile.full_name.split(' ')[0] : '')}
+        subtitle="Live status across every device and case in your jurisdiction"
+      />
+
+      <div className="crm-c3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
+        <SummaryCard label="Lost or Stolen" value={stats.totalLostDevices} icon={Smartphone} tone={stats.totalLostDevices ? TONE.red : TONE.grey} loading={loading} onClick={() => navigate('/police/devices')} note="active cases" />
+        <SummaryCard label="Open Reports" value={stats.activeReports} icon={FileWarning} tone={TONE.amber} loading={loading} onClick={() => navigate('/police/reports')} />
+        <SummaryCard label="Active Chats" value={stats.totalChats} icon={MessagesSquare} tone={TONE.blue} loading={loading} onClick={() => navigate('/police/chats')} />
       </div>
 
-      <div className="r-grid-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
-        <StatCard label="Lost Devices" value={stats.totalLostDevices} icon="warning" color={Colors.error} path="/police/devices" loading={loading} />
-        <StatCard label="Active Reports" value={stats.activeReports} icon="description" color={Colors.primary} path="/police/reports" loading={loading} />
-        <StatCard label="Recovered" value={stats.devicesRecovered} icon="check_circle" color={Colors.secondary} path="/police/devices" loading={loading} />
-        <StatCard label="Protected Users" value={stats.totalUsers} icon="people" color={Colors.tertiary} loading={loading} />
+      <div className="crm-c3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
+        <SummaryCard label="Devices Recovered" value={stats.devicesRecovered} icon={CheckCircle2} tone={TONE.green} loading={loading} />
+        <SummaryCard label="Sightings (24h)" value={stats.recentAlerts} icon={Radio} tone={stats.recentAlerts ? TONE.amber : TONE.grey} loading={loading} note="mesh reports" />
+        <SummaryCard label="Registered Civilians" value={stats.totalUsers} icon={Users} tone={TONE.blue} loading={loading} />
       </div>
 
-      <div className="r-grid-main-side" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div style={{ 
-            height: '420px', borderRadius: '16px', overflow: 'hidden', position: 'relative', 
-            border: `1px solid ${Colors.outlineVariant}`, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' 
-          }}>
-            {isLoaded ? (
-              <GoogleMap
-                mapContainerStyle={mapContainerUiStyle}
-                center={lostDevices.length > 0 ? { lat: lostDevices[0].latitude, lng: lostDevices[0].longitude } : { lat: 19.0760, lng: 72.8777 }}
-                zoom={11}
-                options={{
-                  styles: darkMapStyle,
-                  disableDefaultUI: true,
-                  zoomControl: true,
-                }}
-              >
-                {lostDevices.map(device => (
-                  <Marker
-                    key={device.id}
-                    position={{ lat: device.latitude, lng: device.longitude }}
-                    onClick={() => setSelectedDevice(device)}
-                    icon={{
-                      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-                          <circle cx="20" cy="20" r="8" fill="#FF3D71" stroke="white" stroke-width="2"/>
-                          <circle cx="20" cy="20" r="18" fill="none" stroke="#FF3D71" stroke-width="2" opacity="0.6">
-                            <animate attributeName="r" from="8" to="18" dur="1.5s" begin="0s" repeatCount="indefinite" />
-                            <animate attributeName="opacity" from="0.6" to="0" dur="1.5s" begin="0s" repeatCount="indefinite" />
-                          </circle>
-                        </svg>
-                      `),
-                      scaledSize: new google.maps.Size(40, 40),
-                      anchor: new google.maps.Point(20, 20),
-                    }}
-                  />
-                ))}
+      <div className="crm-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 360px', gap: '20px', alignItems: 'start' }}>
 
-                {selectedDevice && (
-                  <InfoWindow
-                    position={{ lat: selectedDevice.latitude, lng: selectedDevice.longitude }}
-                    onCloseClick={() => setSelectedDevice(null)}
-                  >
-                    <div style={{ color: '#000', padding: '4px' }}>
-                      <strong style={{ display: 'block', marginBottom: '4px' }}>{selectedDevice.device_name}</strong>
-                      <div style={{ fontSize: '11px', marginBottom: '4px' }}>Status: {selectedDevice.status.toUpperCase()}</div>
-                      <div style={{ fontSize: '10px', opacity: 0.6 }}>Last seen: {new Date(selectedDevice.reported_at).toLocaleString()}</div>
+        {/* Map */}
+        <Card style={{ overflow: 'hidden', position: 'relative', height: '520px' }}>
+          {loadError ? (
+            <EmptyState
+              icon={MapPin}
+              title="Map could not load"
+              body="Check that VITE_GOOGLE_MAPS_API_KEY is set and the Maps JavaScript API is enabled for it."
+            />
+          ) : isLoaded ? (
+            <GoogleMap
+              mapContainerStyle={mapContainerUiStyle}
+              center={{ lat: 20.5937, lng: 78.9629 }}
+              zoom={5}
+              options={{ styles: lightMapStyle, disableDefaultUI: true, zoomControl: true }}
+            >
+              {lostDevices.map(device => (
+                <Marker
+                  key={device.id}
+                  position={{ lat: device.latitude, lng: device.longitude }}
+                  onClick={() => setSelectedDevice(device)}
+                  icon={{
+                    path: google.maps.SymbolPath.CIRCLE,
+                    fillColor: TONE.red,
+                    fillOpacity: 1,
+                    strokeColor: '#ffffff',
+                    strokeWeight: 2,
+                    scale: selectedDevice?.id === device.id ? 10 : 7,
+                  }}
+                />
+              ))}
+
+              {selectedDevice && (
+                <InfoWindow
+                  position={{ lat: selectedDevice.latitude, lng: selectedDevice.longitude }}
+                  onCloseClick={() => setSelectedDevice(null)}
+                >
+                  <div style={{ fontFamily: FONT, padding: '2px 4px', minWidth: '150px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#111216' }}>{selectedDevice.device_name}</div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: TONE.red, marginTop: '3px', textTransform: 'capitalize' }}>
+                      {selectedDevice.status}
                     </div>
-                  </InfoWindow>
-                )}
-              </GoogleMap>
-            ) : (
-              <div style={{ width: '100%', height: '100%', background: '#1a1d24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span className="material-icons" style={{ animation: 'spin 1.5s linear infinite', color: Colors.outline }}>sync</span>
-              </div>
-            )}
-            
-            <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 10, backgroundColor: 'rgba(17,19,24,0.85)', padding: '10px 16px', borderRadius: '12px', backdropFilter: 'blur(8px)', border: `1px solid ${Colors.outlineVariant}` }}>
-              <div style={{ color: '#fff', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="material-icons" style={{ color: Colors.error, fontSize: '18px' }}>radar</span>
-                {lostDevices.length} Active Incidents Detected
-                <div style={{ marginLeft: '4px', width: '8px', height: '8px', backgroundColor: Colors.error, borderRadius: '50%', animation: 'pulse 1.5s infinite' }} />
-              </div>
+                    <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                      Seen {new Date(selectedDevice.reported_at).toLocaleString('en-IN', {
+                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
+                </InfoWindow>
+              )}
+            </GoogleMap>
+          ) : (
+            <div style={{ padding: '16px', height: '100%' }}>
+              <Skeleton width="100%" height="100%" radius={16} />
             </div>
-          </div>
+          )}
 
-          <div style={{
-            background: Colors.surfaceContainer, border: `1px solid ${Colors.outlineVariant}`,
-            borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-          }}>
+          {isLoaded && !loadError && (
             <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '18px 22px', borderBottom: `1px solid ${Colors.outlineVariant}`,
-              background: `linear-gradient(135deg, ${Colors.surfaceContainerHigh}, ${Colors.surfaceContainer})`,
+              position: 'absolute', top: '16px', left: '16px', zIndex: 1,
+              display: 'flex', alignItems: 'center', gap: '9px',
+              background: 'rgba(255,255,255,.94)', backdropFilter: 'blur(8px)',
+              border: '1px solid var(--crm-tile-border)', borderRadius: '12px',
+              padding: '9px 14px', fontFamily: FONT,
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="material-icons" style={{ fontSize: '18px', color: Colors.error }}>dashboard_customize</span>
-                <h2 style={{ fontSize: '16px', fontWeight: 700, color: Colors.onSurface, margin: 0 }}>Live Incident Monitor (Debug)</h2>
-              </div>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: TONE.red }} />
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#374151' }}>
+                {lostDevices.length} located {lostDevices.length === 1 ? 'device' : 'devices'}
+              </span>
             </div>
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {lostDevices.length === 0 ? (
-                <p style={{ color: Colors.onSurfaceVariant, fontSize: '13px' }}>No active lost/stolen beacons found in DB.</p>
+          )}
+        </Card>
+
+        {/* Side column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <Card>
+            <CardHeader title="Recent Activity" subtitle="Newest first, refreshed every 15s" />
+            <div style={{ borderTop: '1px solid var(--crm-border)', maxHeight: '340px', overflowY: 'auto' }}>
+              {loading ? (
+                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {[0, 1, 2, 3].map(i => (
+                    <div key={i} style={{ display: 'flex', gap: '11px' }}>
+                      <Skeleton width={32} height={32} radius={10} />
+                      <div style={{ flex: 1 }}>
+                        <Skeleton width="50%" height={12} />
+                        <Skeleton width="70%" height={10} style={{ marginTop: '6px' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : recentActivity.length === 0 ? (
+                <EmptyState icon={AlertCircle} title="Nothing yet" body="Reports, sightings and tamper alerts appear here as they happen." />
               ) : (
-                lostDevices.map(d => (
-                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: Colors.onSurface }}>
-                    <strong>{d.device_name}</strong>
-                    <span style={{ color: Colors.primary }}>{d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}</span>
+                recentActivity.map((item, i) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex', gap: '11px', padding: '12px 20px',
+                      borderBottom: i < recentActivity.length - 1 ? '1px solid var(--crm-border)' : 'none',
+                    }}
+                  >
+                    <IconTile icon={item.icon} tone={item.tone} size={32} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>{item.title}</div>
+                      <div style={{ fontSize: '12px', color: C.muted, marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.description}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: C.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {timeAgo(item.timestamp)}
+                    </span>
                   </div>
                 ))
               )}
             </div>
-          </div>
+          </Card>
 
-          <div style={{
-            background: Colors.surfaceContainer, border: `1px solid ${Colors.outlineVariant}`,
-            borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-          }}>
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '18px 22px', borderBottom: `1px solid ${Colors.outlineVariant}`,
-              background: `linear-gradient(135deg, ${Colors.surfaceContainerHigh}, ${Colors.surfaceContainer})`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="material-icons" style={{ fontSize: '18px', color: Colors.primary }}>history</span>
-                <h2 style={{ fontSize: '16px', fontWeight: 700, color: Colors.onSurface, margin: 0 }}>Recent Activity Feed</h2>
-              </div>
+          <Card>
+            <CardHeader title="Quick Actions" subtitle="Common investigation tasks" />
+            <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {quickActions.map(action => (
+                <button
+                  key={action.path}
+                  className="crm-hoverable"
+                  onClick={() => navigate(action.path)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '11px 12px', borderRadius: '12px', width: '100%',
+                    background: C.card, border: '1px solid var(--crm-border)',
+                    cursor: 'pointer', textAlign: 'left', color: C.heading, fontFamily: FONT,
+                  }}
+                >
+                  <action.icon size={17} strokeWidth={1.75} color={C.primary} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: '13px', fontWeight: 500 }}>{action.label}</span>
+                    <span style={{ display: 'block', fontSize: '11px', color: C.muted, marginTop: '1px' }}>{action.desc}</span>
+                  </span>
+                  <ChevronRight size={15} color={C.muted} />
+                </button>
+              ))}
             </div>
-
-            {recentActivity.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center' }}>
-                <span className="material-icons" style={{ fontSize: '48px', color: Colors.outline, marginBottom: '12px' }}>inbox</span>
-                <p style={{ color: Colors.onSurfaceVariant }}>No recent activity in the area.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {recentActivity.map((activity, i) => (
-                  <div key={activity.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px',
-                    borderBottom: i < recentActivity.length - 1 ? `1px solid ${Colors.outlineVariant}` : 'none',
-                    borderLeft: `3px solid ${activity.type === 'theft_alert' ? activity.color : 'transparent'}`,
-                    transition: 'background 0.2s', background: 'transparent'
-                  }} onMouseEnter={e => e.currentTarget.style.background = Colors.surfaceContainerHigh} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{
-                      width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0,
-                      backgroundColor: `${activity.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <span className="material-icons" style={{ fontSize: '20px', color: activity.color }}>{activity.icon}</span>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, color: Colors.onSurface, fontSize: '14px', marginBottom: '2px' }}>{activity.title}</div>
-                      <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant }}>{activity.description}</div>
-                    </div>
-                    <div style={{ fontSize: '12px', color: Colors.outline, fontWeight: 500 }}>
-                      {new Date(activity.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: Colors.outline, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Command Control
-          </div>
-          
-          {[
-            { label: 'Incident Reports', icon: 'description', path: '/police/reports', color: Colors.primary },
-            { label: 'Device Database', icon: 'devices', path: '/police/devices', color: Colors.secondary },
-            { label: 'Global Search', icon: 'search', path: '/police/search', color: Colors.tertiary },
-            { label: 'Active Chats', icon: 'forum', path: '/police/chats', color: '#aac7ff' },
-            { label: 'City Analytics', icon: 'analytics', path: '/police/analytics', color: Colors.onSurfaceVariant },
-          ].map(action => (
-            <button
-              key={action.path}
-              onClick={() => navigate(action.path)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 18px', borderRadius: '12px',
-                background: Colors.surfaceContainer, border: `1px solid ${Colors.outlineVariant}`,
-                cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 0.2s ease', color: Colors.onSurface,
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = action.color + '55'
-                e.currentTarget.style.background = Colors.surfaceContainerHigh
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = `0 4px 16px ${action.color}15`
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = Colors.outlineVariant
-                e.currentTarget.style.background = Colors.surfaceContainer
-                e.currentTarget.style.transform = 'none'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
-                background: `${action.color}15`, border: `1px solid ${action.color}25`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <span className="material-icons" style={{ fontSize: '18px', color: action.color }}>{action.icon}</span>
-              </div>
-              <span style={{ fontSize: '14px', fontWeight: 600, flex: 1 }}>{action.label}</span>
-              <span className="material-icons" style={{ fontSize: '16px', color: Colors.outline }}>chevron_right</span>
-            </button>
-          ))}
-
-          <div style={{
-            marginTop: '8px', padding: '18px',
-            background: `linear-gradient(135deg, ${Colors.primary}12, ${Colors.accent}08)`,
-            border: `1px solid ${Colors.primary}25`, borderRadius: '14px',
-            boxShadow: `0 0 24px ${Colors.primary}10`,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-              <span style={{
-                display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
-                background: Colors.secondary, boxShadow: `0 0 8px ${Colors.secondary}`,
-                animation: 'pulse 2s infinite',
-              }} />
-              <span style={{ fontSize: '13px', fontWeight: 700, color: Colors.primary, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                System Online
-              </span>
-            </div>
-            <div style={{ fontSize: '13px', color: Colors.onSurfaceVariant, lineHeight: 1.5, marginBottom: '12px' }}>
-              LOQIT central database is connected. BLE sweeping is actively logging nodes across the grid.
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderTop: `1px solid ${Colors.primary}20`, paddingTop: '10px' }}>
-              <span style={{ color: Colors.onSurfaceVariant }}>24h Sweeps:</span>
-              <span style={{ color: Colors.primary, fontWeight: 700 }}>2400+</span>
-            </div>
-          </div>
+          </Card>
         </div>
       </div>
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes pulse {
-          0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(255, 61, 113, 0.4); }
-          70% { transform: scale(1.1); opacity: 0.8; box-shadow: 0 0 0 10px rgba(255, 61, 113, 0); }
-          100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(255, 61, 113, 0); }
-        }
-      `}</style>
-    </div>
+    </Page>
   )
 }

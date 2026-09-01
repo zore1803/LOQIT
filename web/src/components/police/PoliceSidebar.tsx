@@ -1,17 +1,38 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Colors } from '../../lib/colors'
+import {
+  LayoutDashboard, MessagesSquare, Smartphone, FileText, Search,
+  BarChart3, Settings, LogOut, ShieldAlert, LucideIcon,
+} from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { db } from '../../lib/db'
 
-const policeNavItems = [
-  { path: '/police', icon: 'dashboard', label: 'Dashboard', exact: true },
-  { path: '/police/chats', icon: 'forum', label: 'All Chats' },
-  { path: '/police/devices', icon: 'devices', label: 'Lost Devices' },
-  { path: '/police/reports', icon: 'description', label: 'Reports' },
-  { path: '/police/search', icon: 'search', label: 'Search' },
-  { path: '/police/analytics', icon: 'analytics', label: 'Analytics' },
-  { path: '/police/settings', icon: 'settings', label: 'Settings' },
+/**
+ * Police sidebar. Same CRM chrome as the civilian one, with red as the accent
+ * so the portal is unmistakable without resorting to gradients and glows.
+ */
+const C = {
+  chrome: 'var(--crm-chrome)',
+  card: 'var(--crm-card)',
+  tileBorder: 'var(--crm-tile-border)',
+  heading: 'var(--crm-heading)',
+  label: 'var(--crm-label)',
+  muted: 'var(--crm-muted)',
+}
+
+const RED = '#DC2626'
+const FONT = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif"
+
+type PoliceNavItem = { path: string; icon: LucideIcon; label: string; exact?: boolean }
+
+const policeNavItems: PoliceNavItem[] = [
+  { path: '/police', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+  { path: '/police/chats', icon: MessagesSquare, label: 'All Chats' },
+  { path: '/police/devices', icon: Smartphone, label: 'Lost Devices' },
+  { path: '/police/reports', icon: FileText, label: 'Reports' },
+  { path: '/police/search', icon: Search, label: 'Search' },
+  { path: '/police/analytics', icon: BarChart3, label: 'Analytics' },
+  { path: '/police/settings', icon: Settings, label: 'Settings' },
 ]
 
 export function PoliceSidebar() {
@@ -19,7 +40,6 @@ export function PoliceSidebar() {
   const location = useLocation()
   const { profile, signOut } = useAuth()
   const [activeChatsCount, setActiveChatsCount] = useState(0)
-  const [hoveredPath, setHoveredPath] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchActiveChats = async () => {
@@ -37,107 +57,96 @@ export function PoliceSidebar() {
   const initials = profile?.full_name
     ?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'PO'
 
-  const isActive = (item: typeof policeNavItems[0]) =>
+  const isActive = (item: PoliceNavItem) =>
     item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
 
   return (
     <aside style={{
-      width: '256px',
+      width: '248px',
       minHeight: '100vh',
-      background: 'color-mix(in srgb, var(--color-surfaceContainerLowest) 92%, transparent)',
-      backdropFilter: 'blur(20px)',
-      padding: '20px 12px',
+      background: C.chrome,
+      padding: '16px 10px',
       display: 'flex',
       flexDirection: 'column',
-      borderRight: `1px solid ${Colors.outlineVariant}`,
-      position: 'relative',
+      borderRight: `1px solid ${C.tileBorder}`,
       flexShrink: 0,
+      fontFamily: FONT,
     }}>
+      <style>{`
+        .crm-pnav:hover { background: rgba(255,255,255,.6) }
+        .crm-psignout:hover { background: #FEF2F2; border-color: #FECACA !important }
+      `}</style>
 
-      {/* Red glow for police theme */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, width: '200px', height: '200px',
-        background: `radial-gradient(circle at 0% 0%, ${Colors.error}14 0%, transparent 70%)`,
-        pointerEvents: 'none',
-      }} />
-
-      {/* Logo + Police badge */}
+      {/* Wordmark */}
       <div
         onClick={() => navigate('/police')}
-        style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', marginBottom: '8px', cursor: 'pointer', position: 'relative', zIndex: 1 }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '10px 12px', marginBottom: '10px', cursor: 'pointer',
+          background: C.card, border: `1px solid ${C.tileBorder}`,
+          borderRadius: '10px',
+        }}
       >
-        <span style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '0.5px', color: Colors.onSurface }}>LOQIT</span>
+        <span style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '0.5px', color: C.heading }}>LOQIT</span>
       </div>
 
-      {/* Police Portal badge */}
+      {/* Portal badge */}
       <div style={{
-        margin: '0 4px 20px',
-        padding: '8px 14px',
-        background: `linear-gradient(135deg, ${Colors.error}20, ${Colors.error}10)`,
-        border: `1px solid ${Colors.error}35`,
-        borderRadius: '12px',
-        display: 'flex', alignItems: 'center', gap: '8px',
-        boxShadow: `0 0 20px ${Colors.error}10`,
+        display: 'flex', alignItems: 'center', gap: '9px',
+        padding: '10px 12px', marginBottom: '16px',
+        background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px',
       }}>
-        <span className="material-icons" style={{ fontSize: '18px', color: Colors.error }}>local_police</span>
-        <div>
-          <div style={{ fontSize: '11px', fontWeight: 800, color: Colors.error, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Police Portal
+        <ShieldAlert size={17} color={RED} style={{ flexShrink: 0 }} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#991B1B', letterSpacing: '0.4px' }}>
+            POLICE PORTAL
           </div>
-          <div style={{ fontSize: '10px', color: Colors.onSurfaceVariant }}>Authorised Access Only</div>
+          <div style={{ fontSize: '10.5px', color: '#B91C1C', marginTop: '1px' }}>
+            Authorised access only
+          </div>
         </div>
       </div>
 
-      <div style={{ fontSize: '10px', fontWeight: 700, color: Colors.outline, letterSpacing: '1.5px', textTransform: 'uppercase', padding: '0 12px', marginBottom: '8px' }}>
+      <div style={{
+        fontSize: '11px', fontWeight: 700, color: '#5B5A64',
+        letterSpacing: '0.8px', textTransform: 'uppercase',
+        padding: '0 12px', marginBottom: '8px',
+      }}>
         Command Centre
       </div>
 
-      {/* Nav Items */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
         {policeNavItems.map(item => {
           const active = isActive(item)
-          const hovered = hoveredPath === item.path
           return (
             <div
               key={item.path}
+              className={active ? undefined : 'crm-pnav'}
               onClick={() => navigate(item.path)}
-              onMouseEnter={() => setHoveredPath(item.path)}
-              onMouseLeave={() => setHoveredPath(null)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '11px 14px', borderRadius: '12px',
-                position: 'relative', cursor: 'pointer',
-                background: active
-                  ? `linear-gradient(135deg, ${Colors.error}20, ${Colors.error}10)`
-                  : hovered ? Colors.surfaceContainerHigh : 'transparent',
-                border: active ? `1px solid ${Colors.error}35` : '1px solid transparent',
-                boxShadow: active ? `0 0 16px ${Colors.error}12, inset 0 1px 0 ${Colors.error}15` : 'none',
-                color: active ? Colors.error : hovered ? Colors.onSurface : Colors.onSurfaceVariant,
-                transition: 'all 0.2s ease',
-                fontWeight: active ? 700 : 500,
-                fontSize: '14px',
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '9px 14px', borderRadius: '999px',
+                cursor: 'pointer',
+                background: active ? C.card : 'transparent',
+                border: `1px solid ${active ? C.tileBorder : 'transparent'}`,
+                color: active ? RED : C.heading,
+                transition: 'background .15s ease, color .15s ease',
+                fontWeight: active ? 600 : 500,
+                fontSize: '13.5px',
               }}
             >
-              {active && (
-                <div style={{
-                  position: 'absolute', left: 0, top: '20%', bottom: '20%',
-                  width: '3px', borderRadius: '0 4px 4px 0',
-                  background: `linear-gradient(to bottom, ${Colors.error}, #c44)`,
-                  boxShadow: `0 0 8px ${Colors.error}80`,
-                }} />
-              )}
-              <span className="material-icons" style={{
-                fontSize: '20px',
-                color: active ? Colors.error : hovered ? Colors.onSurface : Colors.onSurfaceVariant,
-                transition: 'color 0.2s', flexShrink: 0,
-              }}>{item.icon}</span>
+              <item.icon
+                size={18}
+                strokeWidth={active ? 2 : 1.75}
+                color={active ? RED : C.label}
+                style={{ flexShrink: 0 }}
+              />
               <span style={{ flex: 1 }}>{item.label}</span>
               {item.path === '/police/chats' && activeChatsCount > 0 && (
                 <span style={{
-                  background: `linear-gradient(135deg, ${Colors.secondary}, #06d4a1)`,
-                  color: Colors.onSecondary, fontSize: '10px', fontWeight: 700,
-                  padding: '2px 7px', borderRadius: '10px',
-                  boxShadow: `0 0 8px ${Colors.secondary}60`,
+                  background: '#059669', color: '#fff',
+                  fontSize: '10px', fontWeight: 700,
+                  padding: '2px 7px', borderRadius: '999px',
                 }}>
                   {activeChatsCount}
                 </span>
@@ -147,43 +156,42 @@ export function PoliceSidebar() {
         })}
       </nav>
 
-      {/* Profile section */}
-      <div style={{ borderTop: `1px solid ${Colors.outlineVariant}`, paddingTop: '14px', marginTop: '14px' }}>
+      {/* Officer + sign out */}
+      <div style={{ paddingTop: '12px', marginTop: '12px' }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '12px 14px', borderRadius: '12px', marginBottom: '8px',
-          background: Colors.surfaceContainer,
-          border: `1px solid ${Colors.error}25`,
+          padding: '10px 12px', borderRadius: '10px', marginBottom: '6px',
+          background: C.card, border: `1px solid ${C.tileBorder}`,
         }}>
           <div style={{
-            width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
-            background: `linear-gradient(135deg, ${Colors.error}, #c44)`,
+            width: '32px', height: '32px', borderRadius: '999px', flexShrink: 0,
+            background: RED, color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 700, fontSize: '14px',
-            boxShadow: `0 0 12px ${Colors.error}40`,
+            fontWeight: 600, fontSize: '13px',
           }}>
             {initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, color: Colors.onSurface, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontWeight: 600, color: C.heading, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {profile?.full_name || 'Officer'}
             </div>
-            <div style={{ fontSize: '11px', color: Colors.error, fontWeight: 600 }}>🔴 Police Officer</div>
+            <div style={{ fontSize: '11px', color: C.muted, fontWeight: 500 }}>Police Officer</div>
           </div>
         </div>
+
         <div
+          className="crm-psignout"
           onClick={signOut}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${Colors.error}18`; e.currentTarget.style.borderColor = `${Colors.error}40` }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
           style={{
-            display: 'flex', alignItems: 'center', gap: '12px',
-            padding: '10px 14px', borderRadius: '10px',
-            cursor: 'pointer', color: Colors.error,
+            display: 'flex', alignItems: 'center', gap: '10px',
+            padding: '9px 14px', borderRadius: '10px',
+            cursor: 'pointer', color: RED,
             border: '1px solid transparent',
-            transition: 'all 0.2s ease', fontSize: '14px', fontWeight: 500,
+            transition: 'background .15s ease, border-color .15s ease',
+            fontSize: '13.5px', fontWeight: 500,
           }}
         >
-          <span className="material-icons" style={{ fontSize: '18px' }}>logout</span>
+          <LogOut size={17} strokeWidth={1.75} />
           Sign Out
         </div>
       </div>
