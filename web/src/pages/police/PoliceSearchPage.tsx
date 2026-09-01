@@ -1,9 +1,13 @@
-import { CSSProperties, useState } from 'react'
-import { Colors } from '../../lib/colors'
+import { useState } from 'react'
+import {
+  Search, SearchX, Smartphone, FileText, User, AlertCircle, Loader2,
+} from 'lucide-react'
+import { LucideIcon } from 'lucide-react'
 import { db } from '../../lib/db'
-import { Card } from '../../components/Card'
-import { Input } from '../../components/Input'
-import { Button } from '../../components/Button'
+import {
+  C, TONE, FONT, Page, PageHeader, Card, Button, Badge,
+  Skeleton, EmptyState, IconTile, inputStyle,
+} from '../../components/crm'
 
 type SearchResult = {
   type: 'device' | 'report' | 'user'
@@ -14,22 +18,36 @@ type SearchResult = {
   data: any
 }
 
+const TYPES = [
+  { key: 'all', label: 'Everything' },
+  { key: 'serial', label: 'Devices' },
+  { key: 'complaint', label: 'Reports' },
+  { key: 'phone', label: 'People' },
+] as const
+
+const RESULT_META: Record<SearchResult['type'], { icon: LucideIcon; tone: string; label: string }> = {
+  device: { icon: Smartphone, tone: TONE.blue, label: 'Device' },
+  report: { icon: FileText, tone: TONE.amber, label: 'Report' },
+  user: { icon: User, tone: TONE.green, label: 'Person' },
+}
+
 export function PoliceSearchPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchType, setSearchType] = useState<'all' | 'serial' | 'complaint' | 'phone'>('all')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [error, setError] = useState('')
 
   const performSearch = async () => {
     if (!searchQuery.trim()) return
 
     setLoading(true)
     setSearched(true)
-    const results: SearchResult[] = []
+    setError('')
+    const found: SearchResult[] = []
 
     try {
-      // Search devices
       if (searchType === 'all' || searchType === 'serial') {
         const { data: devices } = await db
           .from('devices')
@@ -38,11 +56,11 @@ export function PoliceSearchPage() {
           .limit(20)
 
         devices?.forEach((device: any) => {
-          results.push({
+          found.push({
             type: 'device',
             id: device.id,
             title: `${device.make} ${device.model}`,
-            subtitle: `Status: ${device.status.toUpperCase()}`,
+            subtitle: String(device.status || '').toUpperCase(),
             details: [
               `Serial: ${device.serial_number}`,
               `HW ID: ${device.ble_device_uuid || 'GENERIC'}`,
@@ -53,7 +71,6 @@ export function PoliceSearchPage() {
         })
       }
 
-      // Search reports
       if (searchType === 'all' || searchType === 'complaint') {
         const { data: reports } = await db
           .from('lost_reports')
@@ -62,22 +79,21 @@ export function PoliceSearchPage() {
           .limit(20)
 
         reports?.forEach((report: any) => {
-          results.push({
+          found.push({
             type: 'report',
             id: report.id,
-            title: report.police_complaint_number || 'No Complaint Number',
-            subtitle: `${report.devices?.make} ${report.devices?.model}`,
+            title: report.police_complaint_number || 'No FIR number',
+            subtitle: `${report.devices?.make ?? ''} ${report.devices?.model ?? ''}`.trim() || 'Unknown device',
             details: [
               `Owner: ${report.profiles?.full_name || 'Unknown'}`,
               `Status: ${report.is_active ? 'Active' : 'Resolved'}`,
-              `Reported: ${new Date(report.reported_at).toLocaleDateString()}`,
+              `Reported: ${new Date(report.reported_at).toLocaleDateString('en-IN')}`,
             ],
             data: report,
           })
         })
       }
 
-      // Search users
       if (searchType === 'all' || searchType === 'phone') {
         const { data: users } = await db
           .from('profiles')
@@ -87,268 +103,176 @@ export function PoliceSearchPage() {
           .limit(20)
 
         users?.forEach((user: any) => {
-          results.push({
+          found.push({
             type: 'user',
             id: user.id,
-            title: user.full_name || 'Unknown User',
+            title: user.full_name || 'Unnamed user',
             subtitle: user.phone_number || 'No phone number',
             details: [
-              `Aadhaar: ${user.aadhaar_verified ? 'Verified' : 'Not Verified'}`,
-              `Joined: ${new Date(user.created_at).toLocaleDateString()}`,
+              `Aadhaar: ${user.aadhaar_verified ? 'Verified' : 'Not verified'}`,
+              `Joined: ${new Date(user.created_at).toLocaleDateString('en-IN')}`,
             ],
             data: user,
           })
         })
       }
 
-      setResults(results)
-    } catch (error) {
-      console.error('Search error:', error)
-      alert('Search failed. Please try again.')
+      setResults(found)
+    } catch (err) {
+      console.error('Search error:', err)
+      setError(err instanceof Error ? err.message : 'Search failed. Please try again.')
+      setResults([])
     } finally {
       setLoading(false)
     }
   }
 
-  const containerStyle: CSSProperties = {
-    padding: '32px',
-    maxWidth: '1200px',
-    margin: '0 auto',
-  }
-
-  const headerStyle: CSSProperties = {
-    marginBottom: '32px',
-  }
-
-  const titleStyle: CSSProperties = {
-    fontSize: '32px',
-    fontWeight: 700,
-    color: Colors.onSurface,
-    marginBottom: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  }
-
-  const searchBoxStyle: CSSProperties = {
-    marginBottom: '32px',
-  }
-
-  const filterButtonsStyle: CSSProperties = {
-    display: 'flex',
-    gap: '10px',
-    marginBottom: '20px',
-    flexWrap: 'wrap',
-  }
-
-  const filterButtonStyle = (isActive: boolean): CSSProperties => ({
-    padding: '8px 18px',
-    borderRadius: '10px',
-    backgroundColor: isActive ? Colors.primary : Colors.surfaceContainerHigh,
-    color: isActive ? Colors.onPrimary : Colors.onSurfaceVariant,
-    border: `1px solid ${isActive ? Colors.primary : Colors.outlineVariant}`,
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
-    transition: 'all 0.2s ease',
-  })
-
-  const searchFormStyle: CSSProperties = {
-    display: 'flex',
-    gap: '12px',
-  }
-
-  const resultsStyle: CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  }
-
-  const resultCardStyle: CSSProperties = {
-    padding: '20px',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-  }
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'device': return 'smartphone'
-      case 'report': return 'description'
-      case 'user': return 'person'
-      default: return 'search'
-    }
-  }
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'device': return Colors.primary
-      case 'report': return Colors.error
-      case 'user': return Colors.secondary
-      default: return Colors.outline
-    }
+  const counts = {
+    device: results.filter(r => r.type === 'device').length,
+    report: results.filter(r => r.type === 'report').length,
+    user: results.filter(r => r.type === 'user').length,
   }
 
   return (
-    <div style={containerStyle}>
-      <div style={headerStyle}>
-        <h1 style={titleStyle}>
-          <span className="material-icons" style={{ fontSize: '40px', color: Colors.primary }}>
-            search
-          </span>
-          Advanced Search
-        </h1>
-        <p style={{ fontSize: '15px', color: Colors.onSurfaceVariant }}>
-          Search by serial number, BLE hardware ID, complaint number, or owner name
-        </p>
-      </div>
+    <Page>
+      <PageHeader
+        title="Search"
+        subtitle="Look up a device, case file or registered owner"
+      />
 
-      <Card style={searchBoxStyle}>
-        <div style={{ padding: '24px' }}>
-          <div style={filterButtonsStyle}>
-            {[
-              { value: 'all', label: 'All' },
-              { value: 'serial', label: 'Serial Number' },
-              { value: 'complaint', label: 'Complaint Number' },
-              { value: 'phone', label: 'Phone Number' },
-            ].map((filter) => (
-              <button
-                key={filter.value}
-                style={filterButtonStyle(searchType === filter.value)}
-                onClick={() => setSearchType(filter.value as any)}
-              >
-                {filter.label}
-              </button>
-            ))}
+      {/* Search bar */}
+      <Card style={{ padding: '18px 20px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 320px', minWidth: 0 }}>
+            <Search size={15} color={C.muted} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              className="crm-input"
+              placeholder="Serial number, FIR number, name or phone"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') performSearch() }}
+              style={{ ...inputStyle, paddingLeft: '34px' }}
+            />
           </div>
+          <Button icon={loading ? Loader2 : Search} onClick={performSearch} disabled={loading || !searchQuery.trim()}>
+            {loading ? 'Searching…' : 'Search'}
+          </Button>
+        </div>
 
-          <div style={searchFormStyle}>
-            <div style={{ flex: 1 }}>
-              <Input
-                placeholder={`Search ${searchType === 'all' ? 'anything' : searchType}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') performSearch()
-                }}
-                icon="search"
-                fullWidth
-              />
-            </div>
-            <Button
-              onClick={performSearch}
-              loading={loading}
-              disabled={!searchQuery.trim()}
-              size="large"
-            >
-              Search
-            </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: C.label }}>Look in</span>
+          <div style={{ display: 'flex', gap: '4px', background: C.tile, border: `1px solid ${C.tileBorder}`, borderRadius: '999px', padding: '3px' }}>
+            {TYPES.map(t => {
+              const active = searchType === t.key
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setSearchType(t.key)}
+                  style={{
+                    padding: '6px 14px', borderRadius: '999px', cursor: 'pointer',
+                    fontSize: '12px', fontWeight: 600, fontFamily: FONT,
+                    background: active ? C.card : 'transparent',
+                    color: active ? C.primary : C.label,
+                    border: `1px solid ${active ? C.tileBorder : 'transparent'}`,
+                  }}
+                >
+                  {t.label}
+                </button>
+              )
+            })}
           </div>
         </div>
       </Card>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px' }}>
-          <span className="material-icons" style={{ fontSize: '48px', color: Colors.primary, animation: 'spin 1s linear infinite' }}>
-            sync
-          </span>
-          <p style={{ marginTop: '16px', color: Colors.onSurfaceVariant }}>Searching...</p>
-        </div>
-      ) : searched && results.length === 0 ? (
-        <Card style={{ padding: '60px', textAlign: 'center' }}>
-          <span className="material-icons" style={{ fontSize: '64px', color: Colors.outline, marginBottom: '16px' }}>
-            search_off
-          </span>
-          <h2 style={{ color: Colors.onSurface, marginBottom: '8px' }}>No results found</h2>
-          <p style={{ color: Colors.onSurfaceVariant }}>
-            Try different search terms or filter options
-          </p>
+      {error && (
+        <Card style={{ padding: '13px 18px', marginBottom: '20px', background: '#FEF2F2', borderColor: '#FECACA' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+            <AlertCircle size={16} color={TONE.red} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: '#991B1B', fontWeight: 500 }}>{error}</span>
+          </div>
         </Card>
-      ) : results.length > 0 ? (
-        <>
-          <h2 style={{ fontSize: '20px', fontWeight: 600, color: Colors.onSurface, marginBottom: '16px' }}>
-            {results.length} result{results.length !== 1 ? 's' : ''} found
-          </h2>
-          <div style={resultsStyle}>
-            {results.map((result) => (
-              <Card
-                key={`${result.type}-${result.id}`}
-                style={resultCardStyle}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)'
-                  e.currentTarget.style.boxShadow = `0 4px 16px ${getTypeColor(result.type)}30`
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              >
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <div
-                    style={{
-                      width: '56px',
-                      height: '56px',
-                      borderRadius: '14px',
-                      backgroundColor: `${getTypeColor(result.type)}20`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span className="material-icons" style={{ fontSize: '28px', color: getTypeColor(result.type) }}>
-                      {getTypeIcon(result.type)}
-                    </span>
-                  </div>
+      )}
 
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
-                      <div>
-                        <h3 style={{ fontSize: '18px', fontWeight: 600, color: Colors.onSurface, marginBottom: '4px' }}>
-                          {result.title}
-                        </h3>
-                        <p style={{ fontSize: '14px', color: Colors.onSurfaceVariant }}>
-                          {result.subtitle}
-                        </p>
-                      </div>
-                      <span
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '6px',
-                          backgroundColor: `${getTypeColor(result.type)}20`,
-                          color: getTypeColor(result.type),
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {result.type}
-                      </span>
+      {/* Result counts */}
+      {searched && !loading && results.length > 0 && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          {(Object.keys(counts) as Array<keyof typeof counts>).filter(k => counts[k] > 0).map(k => {
+            const m = RESULT_META[k]
+            return (
+              <span key={k} style={{
+                display: 'inline-flex', alignItems: 'center', gap: '7px',
+                padding: '7px 13px', borderRadius: '999px',
+                background: C.card, border: `1px solid ${C.border}`,
+                fontSize: '12px', fontWeight: 500, color: C.label,
+              }}>
+                <m.icon size={14} color={m.tone} />
+                {counts[k]} {m.label.toLowerCase()}{counts[k] === 1 ? '' : 's'}
+              </span>
+            )
+          })}
+        </div>
+      )}
+
+      <Card>
+        {loading ? (
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{ display: 'flex', gap: '12px' }}>
+                <Skeleton width={38} height={38} radius={10} />
+                <div style={{ flex: 1 }}>
+                  <Skeleton width="35%" height={13} />
+                  <Skeleton width="55%" height={11} style={{ marginTop: '6px' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !searched ? (
+          <EmptyState
+            icon={Search}
+            title="Search the LOQIT network"
+            body="Enter a serial number, FIR number, owner name or phone number. Every lookup is recorded in the access log."
+          />
+        ) : results.length === 0 ? (
+          <EmptyState
+            icon={SearchX}
+            title="No matches"
+            body={`Nothing found for "${searchQuery}". Try a different term, or widen the search to everything.`}
+            action={searchType !== 'all'
+              ? <Button variant="ghost" onClick={() => { setSearchType('all'); performSearch() }}>Search everything</Button>
+              : undefined}
+          />
+        ) : (
+          <div>
+            {results.map((result, i) => {
+              const m = RESULT_META[result.type]
+              return (
+                <div
+                  key={`${result.type}-${result.id}`}
+                  className="crm-row"
+                  style={{
+                    display: 'flex', gap: '12px', padding: '14px 20px',
+                    borderBottom: i < results.length - 1 ? `1px solid ${C.border}` : 'none',
+                  }}
+                >
+                  <IconTile icon={m.icon} tone={m.tone} size={38} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: C.heading }}>{result.title}</span>
+                      <Badge tone={m.tone}>{m.label}</Badge>
                     </div>
-
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '13px', color: Colors.onSurfaceVariant }}>
-                      {result.details.map((detail, index) => (
-                        <span key={index}>
-                          {detail}
-                        </span>
+                    <div style={{ fontSize: '12px', color: C.label, marginTop: '2px' }}>{result.subtitle}</div>
+                    <div style={{ display: 'flex', gap: '14px', marginTop: '6px', flexWrap: 'wrap' }}>
+                      {result.details.map(d => (
+                        <span key={d} style={{ fontSize: '11.5px', color: C.muted }}>{d}</span>
                       ))}
                     </div>
                   </div>
                 </div>
-              </Card>
-            ))}
+              )
+            })}
           </div>
-        </>
-      ) : (
-        <Card style={{ padding: '60px', textAlign: 'center' }}>
-          <span className="material-icons" style={{ fontSize: '64px', color: Colors.outline, marginBottom: '16px' }}>
-            manage_search
-          </span>
-          <h2 style={{ color: Colors.onSurface, marginBottom: '8px' }}>Start Searching</h2>
-          <p style={{ color: Colors.onSurfaceVariant }}>
-            Enter search terms above to find devices, reports, or users
-          </p>
-        </Card>
-      )}
-    </div>
+        )}
+      </Card>
+    </Page>
   )
 }
