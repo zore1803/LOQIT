@@ -79,7 +79,9 @@ export function Sidebar() {
   return (
     <aside style={{
       width: '248px',
-      minHeight: '100vh',
+      height: '100vh',
+      position: 'sticky',
+      top: 0,
       background: C.chrome,
       padding: '16px 10px',
       display: 'flex',
@@ -87,6 +89,7 @@ export function Sidebar() {
       borderRight: `1px solid ${C.tileBorder}`,
       flexShrink: 0,
       fontFamily: FONT,
+      overflowY: 'auto',
     }}>
       <style>{`
         .crm-nav:hover { background: rgba(255,255,255,.6) }
